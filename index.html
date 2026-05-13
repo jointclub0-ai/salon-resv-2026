@@ -36,6 +36,8 @@
     let currentUser = null;
     let quantities  = Object.fromEntries(PRODUCTS.map(p => [p.id, 0]));
     let reservations = [];
+    let adminUnlocked = false;
+    const ADMIN_PASSWORD = "joint0011";
 
     // ── Auth 初期化 ────────────────────────────────────────────
     signInAnonymously(auth);
@@ -92,6 +94,17 @@
 
     // ── タブ切替 ───────────────────────────────────────────────
     window.showTab = tab => {
+      if (tab === "admin" && !adminUnlocked) {
+        document.getElementById("customerView").classList.add("hidden");
+        document.getElementById("adminView").classList.add("hidden");
+        document.getElementById("passwordView").classList.remove("hidden");
+        document.getElementById("tabCustomer").classList.remove("bg-white","shadow-sm","text-slate-800");
+        document.getElementById("tabCustomer").classList.add("text-slate-500");
+        document.getElementById("tabAdmin").classList.add("bg-white","shadow-sm","text-slate-800");
+        document.getElementById("tabAdmin").classList.remove("text-slate-500");
+        return;
+      }
+      document.getElementById("passwordView").classList.add("hidden");
       document.getElementById("customerView").classList.toggle("hidden", tab !== "customer");
       document.getElementById("adminView").classList.toggle("hidden",   tab !== "admin");
       document.getElementById("tabCustomer").classList.toggle("bg-white",  tab === "customer");
@@ -103,6 +116,19 @@
       document.getElementById("tabAdmin").classList.toggle("text-slate-800", tab === "admin");
       document.getElementById("tabAdmin").classList.toggle("text-slate-500", tab !== "admin");
       if (tab === "admin") renderAdmin();
+    };
+
+    // ── パスワード認証 ─────────────────────────────────────────
+    window.checkPassword = () => {
+      const input = document.getElementById("pwInput").value;
+      if (input === ADMIN_PASSWORD) {
+        adminUnlocked = true;
+        document.getElementById("pwError").classList.add("hidden");
+        showTab("admin");
+      } else {
+        document.getElementById("pwError").classList.remove("hidden");
+        document.getElementById("pwInput").value = "";
+      }
     };
 
     // ── サンクス画面 ──────────────────────────────────────────
@@ -233,6 +259,27 @@
   </nav>
 
   <main class="max-w-4xl mx-auto px-4 mt-6 pb-12">
+
+    <!-- ===== パスワード画面 ===== -->
+    <div id="passwordView" class="hidden max-w-sm mx-auto mt-16">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center space-y-5">
+        <div class="bg-slate-800 w-12 h-12 rounded-full flex items-center justify-center mx-auto">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+        <h2 class="font-bold text-slate-800 text-lg">スタッフ専用</h2>
+        <input id="pwInput" type="password" placeholder="パスワードを入力"
+          class="w-full border border-slate-200 rounded-xl px-4 py-3 text-center text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          onkeydown="if(event.key==='Enter') checkPassword()" />
+        <p id="pwError" class="hidden text-red-500 text-sm">パスワードが違います</p>
+        <button onclick="checkPassword()"
+          class="w-full py-3 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-700 transition-colors">
+          確認する
+        </button>
+      </div>
+    </div>
 
     <!-- ===== お客様画面 ===== -->
     <div id="customerView">
