@@ -27,11 +27,15 @@
     const APP_ID = "salon-resv-2026";
 
     const PRODUCTS = [
-      { id: "W_SH",   name: "シャンプー ［W］オリジナル（乾燥ケア）1000ml",      price: 7040,  img: "w-shampoo.jpg" },
-      { id: "W_TR",   name: "トリートメント ［W］オリジナル（乾燥ケア）1000ml",   price: 9860,  img: "w-treatment.jpg" },
-      { id: "OK_SH",  name: "シャンプー ［オイルK］オリジナル（うねりケア）1000ml", price: 7210,  img: "oilk-shampoo.jpg" },
-      { id: "OK_TR",  name: "トリートメント ［オイルK］オリジナル（うねりケア）1000ml", price: 8440, img: "oilk-treatment.jpg" },
-      { id: "06",     name: "アウトバストリートメント 06",                        price: 1760,  img: "outbath06.jpg" },
+      { id: "W_SH_1000",  name: "シャンプー ［W］オリジナル（乾燥ケア）1000ml",         price: 7040, img: "w-shampoo.jpg" },
+      { id: "W_TR_1000",  name: "トリートメント ［W］オリジナル（乾燥ケア）1000ml",      price: 9860, img: "w-treatment.jpg" },
+      { id: "OK_SH_1000", name: "シャンプー ［オイルK］オリジナル（うねりケア）1000ml",  price: 7210, img: "w-shampoo.jpg" },
+      { id: "OK_TR_1000", name: "トリートメント ［オイルK］オリジナル（うねりケア）1000ml", price: 8440, img: "w-treatment.jpg" },
+      { id: "06",         name: "アウトバストリートメント 06  100ml",                   price: 1760, img: "outbath06.jpg" },
+      { id: "W_SH_700",   name: "シャンプー ［W］オリジナル（乾燥ケア）700ml",          price: 6280, img: "oilk-shampoo.jpg" },
+      { id: "W_TR_700",   name: "トリートメント ［W］オリジナル（乾燥ケア）700ml",       price: 6770, img: "oilk-treatment.jpg" },
+      { id: "OK_SH_700",  name: "シャンプー ［オイルK］オリジナル（うねりケア）700ml",   price: 6360, img: "oilk-shampoo.jpg" },
+      { id: "OK_TR_700",  name: "トリートメント ［オイルK］オリジナル（うねりケア）700ml", price: 7390, img: "oilk-treatment.jpg" },
     ];
 
     // ── 状態 ───────────────────────────────────────────────────
@@ -152,21 +156,23 @@
       // 商品リスト
       const list = document.getElementById("productList");
       list.innerHTML = PRODUCTS.map(p => `
-        <div class="rounded-2xl border transition-all overflow-hidden ${quantities[p.id] > 0 ? "border-slate-800 bg-slate-50" : "border-slate-100 bg-white"}">
+        <div class="rounded-2xl border transition-all overflow-hidden flex ${quantities[p.id] > 0 ? "border-slate-800 bg-slate-50" : "border-slate-100 bg-white"}">
           <img src="${p.img}" alt="${p.name}"
-            class="w-full h-40 object-cover object-center" />
-          <div class="p-4">
-            <h4 class="font-bold text-slate-800 text-sm leading-tight">${p.name}</h4>
-            <p class="text-xs text-slate-500 mt-1">¥${fmt(p.price)}</p>
-            <div class="flex items-center justify-end gap-4 mt-3">
+            class="w-24 h-24 object-cover object-center flex-shrink-0" />
+          <div class="p-3 flex flex-col justify-between flex-1">
+            <div>
+              <h4 class="font-bold text-slate-800 text-xs leading-tight">${p.name}</h4>
+              <p class="text-xs text-slate-500 mt-1">¥${fmt(p.price)}</p>
+            </div>
+            <div class="flex items-center justify-end gap-3 mt-2">
               <button onclick="updateQty('${p.id}',-1)"
                 class="p-1.5 rounded-full border ${quantities[p.id] > 0 ? "border-slate-300 text-slate-800" : "border-slate-100 text-slate-200"}">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
               </button>
-              <span class="w-8 text-center font-bold text-lg">${quantities[p.id]}</span>
+              <span class="w-6 text-center font-bold text-base">${quantities[p.id]}</span>
               <button onclick="updateQty('${p.id}',1)"
-                class="p-1.5 rounded-full border border-slate-300 text-slate-800 hover:bg-white">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                class="p-1.5 rounded-full border border-slate-300 text-slate-800">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
               </button>
             </div>
           </div>
