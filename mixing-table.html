@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>縮毛矯正 1剤 調合表</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+      background: #f5f5f5;
+      padding: 24px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 18px;
+      margin-bottom: 20px;
+      letter-spacing: 2px;
+    }
+    .table-wrap {
+      overflow-x: auto;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 620px;
+      background: #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,.12);
+    }
+    th, td {
+      border: 1px solid #bbb;
+      text-align: center;
+      padding: 8px 6px;
+      font-size: 14px;
+    }
+    /* g数グループヘッダー */
+    .th-g {
+      background: #37474f;
+      color: #fff;
+      font-size: 15px;
+      letter-spacing: 1px;
+    }
+    /* P剤/水サブヘッダー */
+    .th-sub {
+      background: #546e7a;
+      color: #fff;
+      font-size: 13px;
+    }
+    /* 左端レベル列ヘッダー */
+    .th-level {
+      background: #455a64;
+      color: #fff;
+      font-size: 13px;
+      width: 110px;
+    }
+    /* レベル行（上6段階） */
+    .row-level td.label {
+      background: #e3f2fd;
+      font-weight: bold;
+      color: #1565c0;
+    }
+    .row-level td.p { background: #fff9c4; }
+    .row-level td.w { background: #e8f5e9; }
+
+    /* ダメージ行（下2段階）*/
+    .row-damage td.label {
+      background: #fce4ec;
+      font-weight: bold;
+      color: #c62828;
+    }
+    .row-damage td.p { background: #fff3e0; }
+    .row-damage td.w { background: #f3e5f5; }
+
+    /* ダメージ区切り */
+    .sep td { border-top: 3px solid #e53935; }
+
+    @media print {
+      body { padding: 8px; background: #fff; }
+      table { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>縮毛矯正 1剤 調合表</h1>
+
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr>
+      <th class="th-level" rowspan="2">レベル</th>
+      <th class="th-g" colspan="2">100g</th>
+      <th class="th-g" colspan="2">120g</th>
+      <th class="th-g" colspan="2">150g</th>
+      <th class="th-g" colspan="2">180g</th>
+    </tr>
+    <tr>
+      <th class="th-sub">P剤</th><th class="th-sub">水</th>
+      <th class="th-sub">P剤</th><th class="th-sub">水</th>
+      <th class="th-sub">P剤</th><th class="th-sub">水</th>
+      <th class="th-sub">P剤</th><th class="th-sub">水</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- 上6レベル -->
+    <tr class="row-level">
+      <td class="label">レベル①</td>
+      <td class="p">40</td><td class="w">60</td>
+      <td class="p">45</td><td class="w">75</td>
+      <td class="p">55</td><td class="w">95</td>
+      <td class="p">70</td><td class="w">110</td>
+    </tr>
+    <tr class="row-level">
+      <td class="label">レベル②</td>
+      <td class="p">30</td><td class="w">70</td>
+      <td class="p">40</td><td class="w">80</td>
+      <td class="p">50</td><td class="w">100</td>
+      <td class="p">60</td><td class="w">120</td>
+    </tr>
+    <tr class="row-level">
+      <td class="label">レベル③</td>
+      <td class="p">30</td><td class="w">70</td>
+      <td class="p">35</td><td class="w">85</td>
+      <td class="p">45</td><td class="w">105</td>
+      <td class="p">55</td><td class="w">125</td>
+    </tr>
+    <tr class="row-level">
+      <td class="label">レベル④</td>
+      <td class="p">30</td><td class="w">70</td>
+      <td class="p">35</td><td class="w">85</td>
+      <td class="p">45</td><td class="w">105</td>
+      <td class="p">50</td><td class="w">130</td>
+    </tr>
+    <tr class="row-level">
+      <td class="label">レベル⑤</td>
+      <td class="p">25</td><td class="w">75</td>
+      <td class="p">30</td><td class="w">90</td>
+      <td class="p">40</td><td class="w">110</td>
+      <td class="p">50</td><td class="w">130</td>
+    </tr>
+    <tr class="row-level">
+      <td class="label">レベル⑥</td>
+      <td class="p">25</td><td class="w">75</td>
+      <td class="p">30</td><td class="w">90</td>
+      <td class="p">40</td><td class="w">110</td>
+      <td class="p">50</td><td class="w">130</td>
+    </tr>
+    <!-- 下2ダメージレベル -->
+    <tr class="row-damage sep">
+      <td class="label">ハイダメージ</td>
+      <td class="p">25</td><td class="w">75</td>
+      <td class="p">30</td><td class="w">90</td>
+      <td class="p">40</td><td class="w">110</td>
+      <td class="p">45</td><td class="w">135</td>
+    </tr>
+    <tr class="row-damage">
+      <td class="label">ブリーチ毛</td>
+      <td class="p">25</td><td class="w">75</td>
+      <td class="p">30</td><td class="w">90</td>
+      <td class="p">35</td><td class="w">115</td>
+      <td class="p">45</td><td class="w">135</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p style="margin-top:14px; font-size:12px; color:#777; text-align:center;">
+  ※ 数値はすべて g（グラム）。P剤 ＋ 水 ＝ 合計g数。
+</p>
+
+</body>
+</html>
