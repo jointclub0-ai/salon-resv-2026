@@ -8,7 +8,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, deleteDoc, doc, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     // ── Firebase 設定 ──────────────────────────────────────────
     const firebaseConfig = {
@@ -220,11 +220,11 @@
         .sort((a,b) => (b.timestamp?.seconds||0) - (a.timestamp?.seconds||0))
         .map(r => `
           <tr class="hover:bg-slate-50/50 transition-colors align-top">
-            <td class="px-6 py-4">
+            <td class="px-4 py-4">
               <p class="font-bold text-slate-800 text-sm">${r.customerName}</p>
               <p class="text-[10px] text-slate-400 mt-0.5">${r.timestamp?.toDate?.().toLocaleDateString("ja-JP") ?? ""}</p>
             </td>
-            <td class="px-6 py-4">
+            <td class="px-4 py-4">
               <div class="space-y-1">
                 ${(r.items||[]).map(it => `
                   <div class="flex items-center gap-2 text-xs">
@@ -233,12 +233,48 @@
                   </div>`).join("")}
               </div>
             </td>
-            <td class="px-6 py-4 text-right font-bold text-slate-800 text-sm">¥${fmt(r.totalPrice)}</td>
+            <td class="px-4 py-4 text-right font-bold text-slate-800 text-sm">¥${fmt(r.totalPrice)}</td>
+            <td class="px-4 py-4 text-center">
+              <button onclick="deleteReservation('${r.id}', '${r.customerName}')"
+                class="text-red-400 hover:text-red-600 transition-colors p-1" title="削除">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+              </button>
+            </td>
           </tr>
         `).join("");
 
       document.getElementById("reservationCount").textContent = reservations.length;
     }
+
+    // ── 予約削除 ───────────────────────────────────────────────
+    window.deleteReservation = async (id, name) => {
+      if (!confirm(`「${name}」さんの予約を削除しますか？`)) return;
+      try {
+        await deleteDoc(doc(db, "artifacts", APP_ID, "public", "data", "reservations", id));
+      } catch (e) {
+        alert("削除に失敗しました。");
+        console.error(e);
+      }
+    };
+
+    // ── 全データリセット ──────────────────────────────────────
+    window.resetAllData = async () => {
+      if (!confirm("⚠️ 全ての予約データを削除します。\n次のキャンペーン用にリセットしますか？")) return;
+      if (!confirm("本当に削除してよいですか？この操作は取り消せません。")) return;
+      try {
+        const snap = await getDocs(resRef);
+        const batch = writeBatch(db);
+        snap.docs.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+        alert("リセット完了しました。");
+      } catch (e) {
+        alert("リセットに失敗しました。");
+        console.error(e);
+      }
+    };
 
     // ── 初回描画 ───────────────────────────────────────────────
     document.addEventListener("DOMContentLoaded", () => {
@@ -389,14 +425,19 @@
             </svg>
             予約台帳（<span id="reservationCount">0</span>名）
           </h3>
+          <button onclick="resetAllData()"
+            class="text-xs px-3 py-1.5 bg-red-50 text-red-500 rounded-lg border border-red-100 hover:bg-red-100 transition-colors font-medium">
+            🔄 次のキャンペーンにリセット
+          </button>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left">
             <thead class="bg-slate-50 text-slate-400 text-[10px] uppercase font-black">
               <tr>
-                <th class="px-6 py-4">お客様名</th>
-                <th class="px-6 py-4">予約内容</th>
-                <th class="px-6 py-4 text-right">合計金額</th>
+                <th class="px-4 py-4">お客様名</th>
+                <th class="px-4 py-4">予約内容</th>
+                <th class="px-4 py-4 text-right">合計金額</th>
+                <th class="px-4 py-4"></th>
               </tr>
             </thead>
             <tbody id="reservationTable" class="divide-y divide-slate-50"></tbody>
