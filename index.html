@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Repeater Fair 2026 – 予約フォーム</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -45,6 +46,20 @@
     let adminUnlocked = false;
     const ADMIN_PASSWORD = "joint0011";
 
+    // ── LIFF 初期化 ────────────────────────────────────────────
+    const LIFF_ID = "2010337371-g1ra1deL";
+    let liffProfile = null;
+    liff.init({ liffId: LIFF_ID })
+      .then(() => {
+        if (liff.isLoggedIn()) {
+          return liff.getProfile();
+        }
+      })
+      .then(profile => {
+        if (profile) liffProfile = profile;
+      })
+      .catch(e => console.warn("LIFF init error:", e));
+
     // ── Auth 初期化 ────────────────────────────────────────────
     signInAnonymously(auth);
     onAuthStateChanged(auth, u => { currentUser = u; });
@@ -80,8 +95,19 @@
         await addDoc(resRef, {
           customerName: name, items,
           totalPrice: total(), totalItems: count(),
-          timestamp: serverTimestamp(), userId: currentUser.uid
+          timestamp: serverTimestamp(), userId: currentUser.uid,
+          lineUserId: liffProfile?.userId || null
         });
+
+        // ── LINE自動メッセージ送信 ────────────────────────────
+        if (liff.isInClient() && liff.isLoggedIn()) {
+          const itemLines = items.map(it =>
+            `・${it.productName}　×${it.quantity}　¥${it.subtotal.toLocaleString("ja-JP")}`
+          ).join("\n");
+          const msg = `【ご予約確認】Repeater Fair 2026\n\n${name} 様\nご予約ありがとうございます！\n\n─────────────\n${itemLines}\n─────────────\n合計：¥${total().toLocaleString("ja-JP")}\n\n7月5日以降のご来店時にお渡しいたします。\nお会いできるのを楽しみにしております！\njoint club`;
+          await liff.sendMessages([{ type: "text", text: msg }]);
+        }
+
         showThanks();
       } catch (e) {
         alert("送信エラーが発生しました。もう一度お試しください。");
