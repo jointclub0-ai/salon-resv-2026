@@ -49,11 +49,15 @@
     // ── LIFF 初期化 ────────────────────────────────────────────
     const LIFF_ID = "2010337371-g1ra1deL";
     let liffProfile = null;
+    let liffInitialized = false;
     liff.init({ liffId: LIFF_ID })
       .then(() => {
-        if (liff.isLoggedIn()) {
-          return liff.getProfile();
+        liffInitialized = true;
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
         }
+        return liff.getProfile();
       })
       .then(profile => {
         if (profile) liffProfile = profile;
@@ -100,12 +104,16 @@
         });
 
         // ── LINE自動メッセージ送信 ────────────────────────────
-        if (liff.isInClient() && liff.isLoggedIn()) {
-          const itemLines = items.map(it =>
-            `・${it.productName}　×${it.quantity}　¥${it.subtotal.toLocaleString("ja-JP")}`
-          ).join("\n");
-          const msg = `【ご予約確認】Repeater Fair 2026\n\n${name} 様\nご予約ありがとうございます！\n\n─────────────\n${itemLines}\n─────────────\n合計：¥${total().toLocaleString("ja-JP")}\n\n7月5日以降のご来店時にお渡しいたします。\nお会いできるのを楽しみにしております！\njoint club`;
-          await liff.sendMessages([{ type: "text", text: msg }]);
+        try {
+          if (liffInitialized && liff.isInClient()) {
+            const itemLines = items.map(it =>
+              `・${it.productName}　×${it.quantity}　¥${it.subtotal.toLocaleString("ja-JP")}`
+            ).join("\n");
+            const msg = `【ご予約確認】Repeater Fair 2026\n\n${name} 様\nご予約ありがとうございます！\n\n─────────────\n${itemLines}\n─────────────\n合計：¥${total().toLocaleString("ja-JP")}\n\n7月5日以降のご来店時にお渡しいたします。\nお会いできるのを楽しみにしております！\njoint club`;
+            await liff.sendMessages([{ type: "text", text: msg }]);
+          }
+        } catch (liffErr) {
+          console.warn("LINE message send failed:", liffErr);
         }
 
         showThanks();
