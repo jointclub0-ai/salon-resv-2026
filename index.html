@@ -1,486 +1,108 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Repeater Fair 2026 – 予約フォーム</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, deleteDoc, doc, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-    // ── Firebase 設定 ──────────────────────────────────────────
-    const firebaseConfig = {
-      apiKey: "AIzaSyA9KXYdE8UQt-gkhsbbcFo4AC3YLSYZ30c",
-      authDomain: "salon-resv-2026.firebaseapp.com",
-      projectId: "salon-resv-2026",
-      storageBucket: "salon-resv-2026.firebasestorage.app",
-      messagingSenderId: "1027723960257",
-      appId: "1:1027723960257:web:40b7bb82fc1e9c86fe9940",
-      measurementId: "G-CH46FXGT1P"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const APP_ID = "salon-resv-2026";
-
-    const PRODUCTS = [
-      { id: "W_SH_1000",  name: "シャンプー ［W］オリジナル（乾燥ケア）1000ml",         price: 7040, img: "w-shampoo.jpg" },
-      { id: "W_TR_1000",  name: "トリートメント ［W］オリジナル（乾燥ケア）1000ml",      price: 7740, img: "w-treatment.jpg" },
-      { id: "OK_SH_1000", name: "シャンプー ［オイルK］オリジナル（うねりケア）1000ml",  price: 7210, img: "w-shampoo.jpg" },
-      { id: "OK_TR_1000", name: "トリートメント ［オイルK］オリジナル（うねりケア）1000ml", price: 8440, img: "w-treatment.jpg" },
-      { id: "06",         name: "アウトバストリートメント 06  100ml",                   price: 1760, img: "outbath06.jpg" },
-      { id: "W_SH_700",   name: "シャンプー ［W］オリジナル（乾燥ケア）700ml",          price: 6280, img: "oilk-shampoo.jpg" },
-      { id: "W_TR_700",   name: "トリートメント ［W］オリジナル（乾燥ケア）700ml",       price: 6770, img: "oilk-treatment.jpg" },
-      { id: "OK_SH_700",  name: "シャンプー ［オイルK］オリジナル（うねりケア）700ml",   price: 6360, img: "oilk-shampoo.jpg" },
-      { id: "OK_TR_700",  name: "トリートメント ［オイルK］オリジナル（うねりケア）700ml", price: 7390, img: "oilk-treatment.jpg" },
-    ];
-
-    // ── 状態 ───────────────────────────────────────────────────
-    let currentUser = null;
-    let quantities  = Object.fromEntries(PRODUCTS.map(p => [p.id, 0]));
-    let reservations = [];
-    let adminUnlocked = false;
-    const ADMIN_PASSWORD = "joint0011";
-
-    // ── LIFF 初期化 ────────────────────────────────────────────
-    const LIFF_ID = "2010337371-g1ra1deL";
-    let liffProfile = null;
-    let liffInitialized = false;
-    liff.init({ liffId: LIFF_ID })
-      .then(() => {
-        liffInitialized = true;
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
-        return liff.getProfile();
-      })
-      .then(profile => {
-        if (profile) liffProfile = profile;
-      })
-      .catch(e => console.warn("LIFF init error:", e));
-
-    // ── Auth 初期化 ────────────────────────────────────────────
-    signInAnonymously(auth);
-    onAuthStateChanged(auth, u => { currentUser = u; });
-
-    // ── Firestore リッスン（管理画面用）──────────────────────
-    const resRef = collection(db, "artifacts", APP_ID, "public", "data", "reservations");
-    onSnapshot(resRef, snap => {
-      reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderAdmin();
-    });
-
-    // ── ヘルパー ───────────────────────────────────────────────
-    const total = () => PRODUCTS.reduce((s,p) => s + p.price * quantities[p.id], 0);
-    const count = () => Object.values(quantities).reduce((a,b) => a+b, 0);
-    const fmt   = n => n.toLocaleString("ja-JP");
-
-    // ── 予約送信 ───────────────────────────────────────────────
-    window.submitReservation = async () => {
-      const name = document.getElementById("customerName").value.trim();
-      if (!currentUser || count() === 0 || !name) return;
-      document.getElementById("submitBtn").disabled = true;
-      document.getElementById("submitBtn").textContent = "送信中…";
-
-      const items = PRODUCTS
-        .filter(p => quantities[p.id] > 0)
-        .map(p => ({
-          productId: p.id, productName: p.name,
-          price: p.price, quantity: quantities[p.id],
-          subtotal: p.price * quantities[p.id]
-        }));
-
-      try {
-        await addDoc(resRef, {
-          customerName: name, items,
-          totalPrice: total(), totalItems: count(),
-          timestamp: serverTimestamp(), userId: currentUser.uid,
-          lineUserId: liffProfile?.userId || null
-        });
-
-        // ── LINE自動メッセージ送信 ────────────────────────────
-        try {
-          if (liffInitialized && liff.isInClient()) {
-            const itemLines = items.map(it =>
-              `・${it.productName}　×${it.quantity}　¥${it.subtotal.toLocaleString("ja-JP")}`
-            ).join("\n");
-            const msg = `【ご予約確認】Repeater Fair 2026\n\n${name} 様\nご予約ありがとうございます！\n\n─────────────\n${itemLines}\n─────────────\n合計：¥${total().toLocaleString("ja-JP")}\n\n7月5日以降のご来店時にお渡しいたします。\nお会いできるのを楽しみにしております！\njoint club`;
-            await liff.sendMessages([{ type: "text", text: msg }]);
-          }
-        } catch (liffErr) {
-          console.warn("LINE message send failed:", liffErr);
-        }
-
-        showThanks();
-      } catch (e) {
-        alert("送信エラーが発生しました。もう一度お試しください。");
-        console.error(e);
-      } finally {
-        document.getElementById("submitBtn").disabled = false;
-        document.getElementById("submitBtn").textContent = "この内容で予約を確定する";
-      }
-    };
-
-    // ── 数量変更 ───────────────────────────────────────────────
-    window.updateQty = (id, delta) => {
-      quantities[id] = Math.max(0, Math.min(10, quantities[id] + delta));
-      renderForm();
-    };
-
-    // ── タブ切替 ───────────────────────────────────────────────
-    window.showTab = tab => {
-      if (tab === "admin" && !adminUnlocked) {
-        document.getElementById("customerView").classList.add("hidden");
-        document.getElementById("adminView").classList.add("hidden");
-        document.getElementById("passwordView").classList.remove("hidden");
-        document.getElementById("tabCustomer").classList.remove("bg-white","shadow-sm","text-slate-800");
-        document.getElementById("tabCustomer").classList.add("text-slate-500");
-        document.getElementById("tabAdmin").classList.add("bg-white","shadow-sm","text-slate-800");
-        document.getElementById("tabAdmin").classList.remove("text-slate-500");
-        return;
-      }
-      document.getElementById("passwordView").classList.add("hidden");
-      document.getElementById("customerView").classList.toggle("hidden", tab !== "customer");
-      document.getElementById("adminView").classList.toggle("hidden",   tab !== "admin");
-      document.getElementById("tabCustomer").classList.toggle("bg-white",  tab === "customer");
-      document.getElementById("tabCustomer").classList.toggle("shadow-sm", tab === "customer");
-      document.getElementById("tabCustomer").classList.toggle("text-slate-800", tab === "customer");
-      document.getElementById("tabCustomer").classList.toggle("text-slate-500", tab !== "customer");
-      document.getElementById("tabAdmin").classList.toggle("bg-white",  tab === "admin");
-      document.getElementById("tabAdmin").classList.toggle("shadow-sm", tab === "admin");
-      document.getElementById("tabAdmin").classList.toggle("text-slate-800", tab === "admin");
-      document.getElementById("tabAdmin").classList.toggle("text-slate-500", tab !== "admin");
-      if (tab === "admin") renderAdmin();
-    };
-
-    // ── パスワード認証 ─────────────────────────────────────────
-    window.checkPassword = () => {
-      const input = document.getElementById("pwInput").value;
-      if (input === ADMIN_PASSWORD) {
-        adminUnlocked = true;
-        document.getElementById("pwError").classList.add("hidden");
-        showTab("admin");
-      } else {
-        document.getElementById("pwError").classList.remove("hidden");
-        document.getElementById("pwInput").value = "";
-      }
-    };
-
-    // ── サンクス画面 ──────────────────────────────────────────
-    function showThanks() {
-      document.getElementById("formView").classList.add("hidden");
-      document.getElementById("thanksView").classList.remove("hidden");
-      quantities = Object.fromEntries(PRODUCTS.map(p => [p.id, 0]));
-      document.getElementById("customerName").value = "";
-    }
-
-    window.closeThanks = () => {
-      document.getElementById("thanksView").classList.add("hidden");
-      document.getElementById("formView").classList.remove("hidden");
-      renderForm();
-    };
-
-    // ── 予約フォーム描画 ──────────────────────────────────────
-    function renderForm() {
-      // 商品リスト
-      const list = document.getElementById("productList");
-      list.innerHTML = PRODUCTS.map(p => `
-        <div class="rounded-2xl border transition-all overflow-hidden flex ${quantities[p.id] > 0 ? "border-slate-800 bg-slate-50" : "border-slate-100 bg-white"}">
-          <img src="${p.img}" alt="${p.name}"
-            class="w-24 h-24 object-cover object-center flex-shrink-0" />
-          <div class="p-3 flex flex-col justify-between flex-1">
-            <div>
-              <h4 class="font-bold text-slate-800 text-xs leading-tight">${p.name}</h4>
-              <p class="text-xs text-slate-500 mt-1">¥${fmt(p.price)}</p>
-            </div>
-            <div class="flex items-center justify-end gap-3 mt-2">
-              <button onclick="updateQty('${p.id}',-1)"
-                class="p-1.5 rounded-full border ${quantities[p.id] > 0 ? "border-slate-300 text-slate-800" : "border-slate-100 text-slate-200"}">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
-              </button>
-              <span class="w-6 text-center font-bold text-base">${quantities[p.id]}</span>
-              <button onclick="updateQty('${p.id}',1)"
-                class="p-1.5 rounded-full border border-slate-300 text-slate-800">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      `).join("");
-
-      // 合計表示
-      document.getElementById("totalPrice").textContent = `¥${fmt(total())}`;
-      document.getElementById("totalCount").textContent = `${count()}本`;
-
-      // ボタン制御
-      const btn = document.getElementById("submitBtn");
-      const name = document.getElementById("customerName").value.trim();
-      btn.disabled = count() === 0 || !name;
-    }
-
-    // ── 管理画面描画 ──────────────────────────────────────────
-    function renderAdmin() {
-      // 集計カード
-      const statsEl = document.getElementById("statsGrid");
-      statsEl.innerHTML = PRODUCTS.map(p => {
-        const qty = reservations.reduce((acc, r) => {
-          const item = r.items?.find(i => i.productId === p.id);
-          return acc + (item ? item.quantity : 0);
-        }, 0);
-        return `
-          <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${p.id}</p>
-            <div class="flex items-baseline gap-1 mt-1">
-              <span class="text-3xl font-bold text-slate-800">${qty}</span>
-              <span class="text-xs text-slate-500 font-medium">本</span>
-            </div>
-            <p class="text-xs text-slate-400 mt-2 font-medium">売上予測: ¥${fmt(qty * p.price)}</p>
-          </div>
-        `;
-      }).join("");
-
-      // 予約台帳
-      const tbody = document.getElementById("reservationTable");
-      if (reservations.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-12 text-center text-slate-300 text-sm italic">予約データがありません</td></tr>`;
-        return;
-      }
-      tbody.innerHTML = [...reservations]
-        .sort((a,b) => (b.timestamp?.seconds||0) - (a.timestamp?.seconds||0))
-        .map(r => `
-          <tr class="hover:bg-slate-50/50 transition-colors align-top">
-            <td class="px-4 py-4">
-              <p class="font-bold text-slate-800 text-sm">${r.customerName}</p>
-              <p class="text-[10px] text-slate-400 mt-0.5">${r.timestamp?.toDate?.().toLocaleDateString("ja-JP") ?? ""}</p>
-            </td>
-            <td class="px-4 py-4">
-              <div class="space-y-1">
-                ${(r.items||[]).map(it => `
-                  <div class="flex items-center gap-2 text-xs">
-                    <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold">${it.quantity}</span>
-                    <span class="text-slate-600">${it.productName}</span>
-                  </div>`).join("")}
-              </div>
-            </td>
-            <td class="px-4 py-4 text-right font-bold text-slate-800 text-sm">¥${fmt(r.totalPrice)}</td>
-            <td class="px-4 py-4 text-center">
-              <button onclick="deleteReservation('${r.id}', '${r.customerName}')"
-                class="text-red-400 hover:text-red-600 transition-colors p-1" title="削除">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                </svg>
-              </button>
-            </td>
-          </tr>
-        `).join("");
-
-      document.getElementById("reservationCount").textContent = reservations.length;
-    }
-
-    // ── 予約削除 ───────────────────────────────────────────────
-    window.deleteReservation = async (id, name) => {
-      if (!confirm(`「${name}」さんの予約を削除しますか？`)) return;
-      try {
-        await deleteDoc(doc(db, "artifacts", APP_ID, "public", "data", "reservations", id));
-      } catch (e) {
-        alert("削除に失敗しました。");
-        console.error(e);
-      }
-    };
-
-    // ── 全データリセット ──────────────────────────────────────
-    window.resetAllData = async () => {
-      if (!confirm("⚠️ 全ての予約データを削除します。\n次のキャンペーン用にリセットしますか？")) return;
-      if (!confirm("本当に削除してよいですか？この操作は取り消せません。")) return;
-      try {
-        const snap = await getDocs(resRef);
-        const batch = writeBatch(db);
-        snap.docs.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-        alert("リセット完了しました。");
-      } catch (e) {
-        alert("リセットに失敗しました。");
-        console.error(e);
-      }
-    };
-
-    // ── 初回描画 ───────────────────────────────────────────────
-    document.addEventListener("DOMContentLoaded", () => {
-      renderForm();
-      document.getElementById("customerName").addEventListener("input", renderForm);
-    });
-  </script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>縮毛矯正 神戸西区なら joint club（ジョイントクラブ）｜髪質改善専門サロン</title>
+<meta name="description" content="神戸西区で縮毛矯正・髪質改善を探すなら joint club（ジョイントクラブ）。1日2〜3名の完全少人数制で、くせ毛・広がりに向き合う集中ケア。JR明石駅・地下鉄伊川谷駅からバス圏内。" />
+<script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="min-h-screen bg-slate-50 font-sans">
+<body class="bg-white text-gray-800">
 
-  <!-- ナビ -->
-  <nav class="bg-white border-b sticky top-0 z-10 shadow-sm">
-    <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
-      <h1 class="font-bold text-lg text-slate-800 truncate">Repeater Fair 2026</h1>
-      <div class="flex bg-slate-100 p-1 rounded-lg">
-        <button id="tabCustomer" onclick="showTab('customer')"
-          class="px-3 py-1.5 rounded-md text-xs font-medium transition-all bg-white shadow-sm text-slate-800">
-          予約
-        </button>
-        <button id="tabAdmin" onclick="showTab('admin')"
-          class="px-3 py-1.5 rounded-md text-xs font-medium transition-all text-slate-500">
-          管理
-        </button>
+<header class="border-b">
+  <div class="max-w-4xl mx-auto flex items-center justify-between px-4 py-4">
+    <a href="/" class="text-xl font-bold tracking-wide">joint club</a>
+    <nav class="hidden sm:flex gap-6 text-sm">
+      <a href="/menu/" class="hover:text-pink-600">メニュー</a>
+      <a href="/stylist/" class="hover:text-pink-600">スタイリスト</a>
+      <a href="/access/" class="hover:text-pink-600">アクセス</a>
+      <a href="/blog/" class="hover:text-pink-600">ブログ</a>
+    </nav>
+    <a href="/reservation/" class="bg-pink-600 text-white text-sm px-4 py-2 rounded-full hover:bg-pink-700">ご予約はこちら</a>
+  </div>
+</header>
+
+<main>
+  <section class="max-w-4xl mx-auto px-4 py-14 text-center">
+    <p class="text-pink-600 font-semibold mb-2">神戸市西区・大津和</p>
+    <h1 class="text-3xl sm:text-4xl font-bold leading-snug mb-4">
+      神戸西区の縮毛矯正専門サロン<br class="sm:hidden">joint club（ジョイントクラブ）
+    </h1>
+    <p class="max-w-2xl mx-auto text-gray-600 leading-relaxed">
+      くせ毛・広がり・うねりに向き合う「髪質改善縮毛矯正」専門店。<br>
+      1日2〜3名限定の完全少人数制で、担当スタイリストがじっくりと向き合います。
+    </p>
+    <div class="mt-8 flex justify-center gap-4">
+      <a href="/reservation/" class="bg-pink-600 text-white px-6 py-3 rounded-full font-semibold hover:bg-pink-700">ご予約はこちら</a>
+      <a href="/menu/" class="border border-pink-600 text-pink-600 px-6 py-3 rounded-full font-semibold hover:bg-pink-50">メニュー・料金を見る</a>
+    </div>
+  </section>
+
+  <section class="bg-gray-50 py-14">
+    <div class="max-w-4xl mx-auto px-4">
+      <h2 class="text-2xl font-bold text-center mb-10">joint club が選ばれる理由</h2>
+      <div class="grid sm:grid-cols-3 gap-8">
+        <div class="text-center">
+          <p class="text-3xl font-bold text-pink-600 mb-2">縮毛矯正専門</p>
+          <p class="text-sm text-gray-600">くせ・うねりの根本原因に向き合う「髪質改善」の技術に特化。</p>
+        </div>
+        <div class="text-center">
+          <p class="text-3xl font-bold text-pink-600 mb-2">1日2〜3名限定</p>
+          <p class="text-sm text-gray-600">完全少人数制だから、一人ひとりの髪質にじっくり向き合えます。</p>
+        </div>
+        <div class="text-center">
+          <p class="text-3xl font-bold text-pink-600 mb-2">リピート率75%</p>
+          <p class="text-sm text-gray-600">仕上がりに満足したお客様が、繰り返し通ってくださっています。</p>
+        </div>
       </div>
     </div>
-  </nav>
+  </section>
 
-  <main class="max-w-4xl mx-auto px-4 mt-6 pb-12">
-
-    <!-- ===== パスワード画面 ===== -->
-    <div id="passwordView" class="hidden max-w-sm mx-auto mt-16">
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 text-center space-y-5">
-        <div class="bg-slate-800 w-12 h-12 rounded-full flex items-center justify-center mx-auto">
-          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-          </svg>
-        </div>
-        <h2 class="font-bold text-slate-800 text-lg">スタッフ専用</h2>
-        <input id="pwInput" type="password" placeholder="パスワードを入力"
-          class="w-full border border-slate-200 rounded-xl px-4 py-3 text-center text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-          onkeydown="if(event.key==='Enter') checkPassword()" />
-        <p id="pwError" class="hidden text-red-500 text-sm">パスワードが違います</p>
-        <button onclick="checkPassword()"
-          class="w-full py-3 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-700 transition-colors">
-          確認する
-        </button>
+  <section class="max-w-4xl mx-auto px-4 py-14">
+    <h2 class="text-2xl font-bold text-center mb-8">メニュー例</h2>
+    <div class="grid sm:grid-cols-3 gap-6">
+      <div class="border rounded-xl p-6 text-center">
+        <p class="font-semibold mb-1">髪質改善縮毛矯正(M)</p>
+        <p class="text-pink-600 font-bold text-lg">¥18,480</p>
+      </div>
+      <div class="border rounded-xl p-6 text-center">
+        <p class="font-semibold mb-1">髪質改善glossカラー・白髪染(M)</p>
+        <p class="text-pink-600 font-bold text-lg">¥12,320</p>
+      </div>
+      <div class="border rounded-xl p-6 text-center">
+        <p class="font-semibold mb-1">髪質改善パーマ</p>
+        <p class="text-pink-600 font-bold text-lg">¥11,440</p>
       </div>
     </div>
+    <p class="text-center mt-6">
+      <a href="/menu/" class="text-pink-600 font-semibold hover:underline">メニュー一覧をもっと見る →</a>
+    </p>
+  </section>
 
-    <!-- ===== お客様画面 ===== -->
-    <div id="customerView">
+  <section class="bg-gray-50 py-14">
+    <div class="max-w-4xl mx-auto px-4 text-center">
+      <h2 class="text-2xl font-bold mb-6">アクセス</h2>
+      <p class="text-gray-600">兵庫県神戸市西区大津和2-10-1</p>
+      <p class="text-gray-600 mb-6">JR「明石駅」・地下鉄「伊川谷駅」からバス「大津和」下車 徒歩3分</p>
+      <a href="/access/" class="text-pink-600 font-semibold hover:underline">アクセス詳細・地図を見る →</a>
+    </div>
+  </section>
 
-      <!-- 予約フォーム -->
-      <div id="formView" class="max-w-md mx-auto space-y-4">
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <!-- 名前 -->
-          <div class="flex items-center gap-3 mb-6">
-            <div class="bg-slate-800 p-2 rounded-lg text-white">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-              </svg>
-            </div>
-            <div class="flex-1">
-              <label class="text-xs font-bold text-slate-400 uppercase">お名前</label>
-              <input id="customerName" type="text" placeholder="例：山田 花子"
-                class="w-full mt-1 p-0 border-none focus:ring-0 text-lg font-medium placeholder:text-slate-300 outline-none" />
-            </div>
-          </div>
+  <section class="max-w-4xl mx-auto px-4 py-14 text-center">
+    <h2 class="text-2xl font-bold mb-6">ご予約・お問い合わせ</h2>
+    <div class="flex flex-wrap justify-center gap-4">
+      <a href="/reservation/" class="bg-pink-600 text-white px-6 py-3 rounded-full font-semibold hover:bg-pink-700">サイトから予約する</a>
+      <a href="https://beauty.hotpepper.jp/slnH000320550/coupon/" class="border border-pink-600 text-pink-600 px-6 py-3 rounded-full font-semibold hover:bg-pink-50">ホットペッパービューティーで予約</a>
+      <a href="https://www.instagram.com/jointclub_kobe/" class="border border-gray-300 text-gray-700 px-6 py-3 rounded-full font-semibold hover:bg-gray-50">Instagram</a>
+    </div>
+  </section>
+</main>
 
-          <!-- 商品 -->
-          <div class="space-y-4">
-            <label class="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
-              </svg>
-              商品を選択
-            </label>
-            <div id="productList" class="space-y-3"></div>
-          </div>
-        </div>
+<footer class="border-t py-8 text-center text-sm text-gray-500">
+  <p>joint club（ジョイントクラブ）｜兵庫県神戸市西区大津和2-10-1</p>
+  <p class="mt-1">営業時間 9:00〜19:00（最終受付15:30）｜定休日 月曜日</p>
+  <p class="mt-4">&copy; joint club</p>
+</footer>
 
-        <!-- 合計・送信 -->
-        <div class="bg-slate-800 rounded-2xl p-6 text-white shadow-xl">
-          <div class="flex justify-between items-end mb-4">
-            <div>
-              <p class="text-slate-400 text-xs uppercase font-bold">合計金額（概算）</p>
-              <p id="totalPrice" class="text-3xl font-bold italic">¥0</p>
-            </div>
-            <div class="text-right">
-              <p class="text-slate-400 text-xs font-bold uppercase">合計本数</p>
-              <p id="totalCount" class="text-xl font-bold">0本</p>
-            </div>
-          </div>
-          <button id="submitBtn" onclick="submitReservation()" disabled
-            class="w-full py-4 bg-white text-slate-800 rounded-xl font-bold text-lg
-                   hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-white
-                   transition-all active:scale-95 shadow-lg">
-            この内容で予約を確定する
-          </button>
-          <p class="text-center text-[10px] text-slate-400 mt-4 leading-relaxed">
-            ※予約後のキャンセル・変更はお電話にて承ります。<br>
-            ※お支払いは7/5以降の店頭受取時となります。
-          </p>
-        </div>
-      </div>
-
-      <!-- サンクス画面 -->
-      <div id="thanksView" class="hidden max-w-md mx-auto">
-        <div class="bg-white p-8 rounded-3xl shadow-xl text-center space-y-6">
-          <div class="flex justify-center">
-            <div class="bg-green-100 p-4 rounded-full">
-              <svg class="w-16 h-16 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-            </div>
-          </div>
-          <h2 class="text-2xl font-bold text-slate-800">ご予約ありがとうございます！</h2>
-          <p class="text-slate-600 text-sm">
-            ご予約内容を承りました。<br>
-            7月5日以降のご来店時に商品をお渡しいたします。<br>
-            お会いできるのを楽しみにしております！
-          </p>
-          <button onclick="closeThanks()"
-            class="w-full py-3 bg-slate-800 text-white rounded-xl font-medium hover:bg-slate-700 transition-colors">
-            閉じる
-          </button>
-        </div>
-      </div>
-
-    </div><!-- /customerView -->
-
-    <!-- ===== 管理画面 ===== -->
-    <div id="adminView" class="hidden space-y-6">
-
-      <!-- 集計カード -->
-      <div id="statsGrid" class="grid grid-cols-1 sm:grid-cols-3 gap-4"></div>
-
-      <!-- 予約台帳 -->
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div class="p-5 border-b border-slate-50 flex items-center justify-between">
-          <h3 class="font-bold text-slate-800 flex items-center gap-2">
-            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-            </svg>
-            予約台帳（<span id="reservationCount">0</span>名）
-          </h3>
-          <button onclick="resetAllData()"
-            class="text-xs px-3 py-1.5 bg-red-50 text-red-500 rounded-lg border border-red-100 hover:bg-red-100 transition-colors font-medium">
-            🔄 次のキャンペーンにリセット
-          </button>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left">
-            <thead class="bg-slate-50 text-slate-400 text-[10px] uppercase font-black">
-              <tr>
-                <th class="px-4 py-4">お客様名</th>
-                <th class="px-4 py-4">予約内容</th>
-                <th class="px-4 py-4 text-right">合計金額</th>
-                <th class="px-4 py-4"></th>
-              </tr>
-            </thead>
-            <tbody id="reservationTable" class="divide-y divide-slate-50"></tbody>
-          </table>
-        </div>
-      </div>
-
-    </div><!-- /adminView -->
-
-  </main>
 </body>
 </html>
