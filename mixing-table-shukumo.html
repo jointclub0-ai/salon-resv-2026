@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>縮毛矯正 1剤 調合表</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans JP', "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+      background: #f0ede8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    /* ── カード ── */
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.13);
+      width: 100%;
+      max-width: 900px;
+      overflow: hidden;
+    }
+
+    /* ── ヘッダーバー ── */
+    .header {
+      background: linear-gradient(135deg, #1c1c2e 0%, #2d2d44 60%, #3a3050 100%);
+      padding: 28px 36px 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      top: -30px; right: -30px;
+      width: 160px; height: 160px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.04);
+    }
+    .header::after {
+      content: '';
+      position: absolute;
+      bottom: -20px; left: 60px;
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.03);
+    }
+    .header-label {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 4px;
+      color: #b8a9d9;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .header h1 {
+      font-size: 22px;
+      font-weight: 900;
+      color: #fff;
+      letter-spacing: 3px;
+    }
+    .header-sub {
+      margin-top: 6px;
+      font-size: 12px;
+      color: rgba(255,255,255,.45);
+      letter-spacing: 1px;
+    }
+
+    /* ── バッジ凡例 ── */
+    .legend {
+      display: flex;
+      gap: 20px;
+      padding: 16px 36px;
+      background: #faf8f5;
+      border-bottom: 1px solid #ede9e3;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: #555;
+      font-weight: 500;
+    }
+    .badge {
+      width: 28px; height: 18px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+    .badge-p  { background: #f5a623; }
+    .badge-w  { background: #4db6ac; }
+    .badge-d  { background: linear-gradient(90deg,#e57373,#ef9a9a); }
+    .legend-note {
+      margin-left: auto;
+      font-size: 11px;
+      color: #aaa;
+    }
+
+    /* ── テーブル ── */
+    .table-wrap { overflow-x: auto; padding: 0 20px 28px; }
+
+    table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+      min-width: 640px;
+      margin-top: 20px;
+    }
+
+    /* ヘッダー行 */
+    thead tr:first-child th {
+      padding: 14px 6px 10px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #fff;
+      border-bottom: none;
+    }
+    thead tr:first-child .th-level {
+      background: transparent;
+      color: transparent;
+    }
+    .th-g-100 { background: #4a4080; }
+    .th-g-120 { background: #3d5a80; }
+    .th-g-150 { background: #2d6a6a; }
+    .th-g-180 { background: #1a5276; }
+
+    thead tr:first-child th:first-child { border-radius: 10px 0 0 0; }
+    thead tr:first-child th:last-child  { border-radius: 0 10px 0 0; }
+
+    /* サブヘッダー */
+    thead tr:nth-child(2) th {
+      padding: 7px 4px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: rgba(255,255,255,.85);
+    }
+    thead tr:nth-child(2) .sub-level {
+      background: #2c2c3e;
+      font-size: 12px;
+      color: #c0b8e0;
+      letter-spacing: 2px;
+      text-align: left;
+      padding-left: 16px;
+    }
+    .sub-p-100,.sub-p-120,.sub-p-150,.sub-p-180 { background: rgba(245,166,35,.75); color: #3a2200; }
+    .sub-w-100,.sub-w-120,.sub-w-150,.sub-w-180 { background: rgba(77,182,172,.75); color: #003333; }
+    .sub-p-100 { background: #c59240; }
+    .sub-w-100 { background: #3d9a92; }
+    .sub-p-120 { background: #b07c35; }
+    .sub-w-120 { background: #35897f; }
+    .sub-p-150 { background: #9e6f30; }
+    .sub-w-150 { background: #2f7a70; }
+    .sub-p-180 { background: #8c5f28; }
+    .sub-w-180 { background: #286860; }
+
+    /* データセル共通 */
+    td {
+      padding: 13px 8px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 700;
+      border-bottom: 1px solid #ede9e3;
+      transition: background .15s;
+    }
+
+    /* レベルラベル列 */
+    td.label {
+      text-align: left;
+      padding-left: 16px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+      min-width: 120px;
+      border-right: 3px solid #e0daf0;
+    }
+
+    /* レベル行 */
+    .row-level td.label { color: #3a3060; background: #f5f3fc; }
+    .row-level:hover td { background: #f0ecf8; }
+    .row-level:hover td.label { background: #e8e3f5; }
+
+    /* レベルごとのP・水色 */
+    .row-level td.p { color: #7a4200; background: #fff8ec; }
+    .row-level td.w { color: #004d47; background: #f0faf9; }
+    .row-level:hover td.p { background: #ffefd4; }
+    .row-level:hover td.w { background: #ddf5f3; }
+
+    /* ダメージ区切り */
+    .sep td {
+      border-top: 3px solid #e57373;
+    }
+    /* ダメージ行 */
+    .row-damage td.label { color: #7f1d1d; background: #fff5f5; border-right-color: #f5baba; }
+    .row-damage td.p { color: #7a2e00; background: #fff3e8; }
+    .row-damage td.w { color: #4a1060; background: #fdf0ff; }
+    .row-damage:hover td { background: #fde8e8; }
+    .row-damage:hover td.label { background: #fdd5d5; }
+    .row-damage:hover td.p { background: #fde4cc; }
+    .row-damage:hover td.w { background: #f8e0ff; }
+
+    /* ラベル内のナンバーバッジ */
+    .num-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: #3a3060;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 900;
+      margin-right: 8px;
+      flex-shrink: 0;
+    }
+    .row-damage .num-badge {
+      background: #c0392b;
+    }
+
+    /* フッター */
+    .footer {
+      background: #faf8f5;
+      border-top: 1px solid #ede9e3;
+      padding: 14px 36px;
+      font-size: 11.5px;
+      color: #999;
+      letter-spacing: .5px;
+    }
+
+    @media print {
+      body { background: #fff; padding: 0; }
+      .card { box-shadow: none; border-radius: 0; max-width: 100%; }
+      td { font-size: 14px; padding: 8px 4px; }
+      .row-level:hover td,
+      .row-damage:hover td { background: inherit; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+
+  <!-- ヘッダー -->
+  <div class="header">
+    <div class="header-label">Chemical Straightening Agent</div>
+    <h1>縮毛矯正 1剤 調合表</h1>
+    <div class="header-sub">P剤 ＋ 水 ＝ 合計グラム数　／　数値はすべて g（グラム）</div>
+  </div>
+
+  <!-- 凡例 -->
+  <div class="legend">
+    <div class="legend-item"><span class="badge badge-p"></span>P剤（g）</div>
+    <div class="legend-item"><span class="badge badge-w"></span>水（g）</div>
+    <div class="legend-item"><span class="badge badge-d"></span>ダメージレベル</div>
+    <span class="legend-note">上：通常レベル 6段階　／　下：ダメージ 2段階</span>
+  </div>
+
+  <!-- テーブル -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="th-level" rowspan="2"></th>
+          <th class="th-g-100" colspan="2">100 g</th>
+          <th class="th-g-120" colspan="2">120 g</th>
+          <th class="th-g-150" colspan="2">150 g</th>
+          <th class="th-g-180" colspan="2">180 g</th>
+        </tr>
+        <tr>
+          <th class="sub-level" style="display:none"></th>
+          <th class="sub-p-100">P剤</th><th class="sub-w-100">水</th>
+          <th class="sub-p-120">P剤</th><th class="sub-w-120">水</th>
+          <th class="sub-p-150">P剤</th><th class="sub-w-150">水</th>
+          <th class="sub-p-180">P剤</th><th class="sub-w-180">水</th>
+        </tr>
+      </thead>
+      <tbody>
+
+        <!-- 上 6レベル -->
+        <tr class="row-level">
+          <td class="label"><span class="num-badge">1</span>レベル①</td>
+          <td class="p">40</td><td class="w">60</td>
+          <td class="p">45</td><td class="w">75</td>
+          <td class="p">55</td><td class="w">95</td>
+          <td class="p">70</td><td class="w">110</td>
+        </tr>
+        <tr class="row-level">
+          <td class="label"><span class="num-badge">2</span>レベル②</td>
+          <td class="p">30</td><td class="w">70</td>
+          <td class="p">40</td><td class="w">80</td>
+          <td class="p">50</td><td class="w">100</td>
+          <td class="p">60</td><td class="w">120</td>
+        </tr>
+        <tr class="row-level">
+          <td class="label"><span class="num-badge">3</span>レベル③</td>
+          <td class="p">30</td><td class="w">70</td>
+          <td class="p">35</td><td class="w">85</td>
+          <td class="p">45</td><td class="w">105</td>
+          <td class="p">55</td><td class="w">125</td>
+        </tr>
+        <tr class="row-level">
+          <td class="label"><span class="num-badge">4</span>レベル④</td>
+          <td class="p">30</td><td class="w">70</td>
+          <td class="p">35</td><td class="w">85</td>
+          <td class="p">45</td><td class="w">105</td>
+          <td class="p">50</td><td class="w">130</td>
+        </tr>
+        <tr class="row-level">
+          <td class="label"><span class="num-badge">5</span>レベル⑤</td>
+          <td class="p">25</td><td class="w">75</td>
+          <td class="p">30</td><td class="w">90</td>
+          <td class="p">40</td><td class="w">110</td>
+          <td class="p">50</td><td class="w">130</td>
+        </tr>
+        <tr class="row-level">
+          <td class="label"><span class="num-badge">6</span>レベル⑥</td>
+          <td class="p">25</td><td class="w">75</td>
+          <td class="p">30</td><td class="w">90</td>
+          <td class="p">40</td><td class="w">110</td>
+          <td class="p">50</td><td class="w">130</td>
+        </tr>
+
+        <!-- 下 2ダメージレベル -->
+        <tr class="row-damage sep">
+          <td class="label"><span class="num-badge">D1</span>ハイダメージ</td>
+          <td class="p">25</td><td class="w">75</td>
+          <td class="p">30</td><td class="w">90</td>
+          <td class="p">40</td><td class="w">110</td>
+          <td class="p">45</td><td class="w">135</td>
+        </tr>
+        <tr class="row-damage">
+          <td class="label"><span class="num-badge">D2</span>ブリーチ毛</td>
+          <td class="p">25</td><td class="w">75</td>
+          <td class="p">30</td><td class="w">90</td>
+          <td class="p">35</td><td class="w">115</td>
+          <td class="p">45</td><td class="w">135</td>
+        </tr>
+
+      </tbody>
+    </table>
+  </div>
+
+  <!-- フッター -->
+  <div class="footer">
+    ※ 数値の単位はすべて g（グラム）。P剤 ＋ 水 ＝ 各列の合計グラム数。レベル名は実際の薬剤に合わせて変更してください。
+  </div>
+
+</div>
+
+</body>
+</html>
