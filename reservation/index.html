@@ -230,6 +230,10 @@
       const btn = document.getElementById("submitBtn");
       const name = document.getElementById("customerName").value.trim();
       btn.disabled = count() === 0 || !name;
+      document.getElementById("submitHint").textContent =
+        !name && count() === 0 ? "お名前の入力と商品の選択をお願いします"
+        : !name ? "↑ ページ上部の「お名前」をご入力ください"
+        : count() === 0 ? "商品を1つ以上お選びください" : "";
     }
 
     // ── 管理画面描画 ──────────────────────────────────────────
@@ -395,7 +399,7 @@
         </div>
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
           <!-- 名前 -->
-          <div class="flex items-center gap-3 mb-6">
+          <div class="flex items-start gap-3 mb-6">
             <div class="bg-slate-800 p-2 rounded-lg text-white">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -403,9 +407,14 @@
               </svg>
             </div>
             <div class="flex-1">
-              <label class="text-xs font-bold text-slate-400 uppercase">お名前</label>
-              <input id="customerName" type="text" placeholder="例：山田 花子"
-                class="w-full mt-1 p-0 border-none focus:ring-0 text-lg font-medium placeholder:text-slate-300 outline-none" />
+              <label for="customerName" class="flex items-center gap-2 text-sm font-bold text-slate-800">
+                お名前
+                <span class="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded">必須</span>
+              </label>
+              <input id="customerName" type="text" placeholder="例：山田 花子" autocomplete="name"
+                class="w-full mt-2 px-4 py-3 border-2 border-slate-300 rounded-xl text-lg font-medium
+                       placeholder:text-slate-300 focus:outline-none focus:border-slate-800 focus:ring-0" />
+              <p class="text-[11px] text-slate-400 mt-1.5">ご来店時の受け取り確認に使います。フルネームでご入力ください。</p>
             </div>
           </div>
 
@@ -441,6 +450,7 @@
                    transition-all active:scale-95 shadow-lg">
             この内容で予約を確定する
           </button>
+          <p id="submitHint" class="text-center text-xs text-amber-300 font-bold mt-3"></p>
           <p class="text-center text-[10px] text-slate-400 mt-4 leading-relaxed">
             ※予約後のキャンセル・変更はお電話にて承ります。<br>
             ※お支払いは12/5（土）以降の店頭受取時となります。
