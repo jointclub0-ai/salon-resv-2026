@@ -8,7 +8,7 @@
   <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
     import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, deleteDoc, doc, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     // ── Firebase 設定 ──────────────────────────────────────────
@@ -44,7 +44,9 @@
     let quantities  = Object.fromEntries(PRODUCTS.map(p => [p.id, 0]));
     let reservations = [];
     let adminUnlocked = false;
-    const ADMIN_PASSWORD = "joint0011";
+    // 管理者は Firebase Authentication のメール/パスワードでログインする。
+    // パスワードはページに書かず、Firebase 側でだけ管理する。
+    const ADMIN_EMAIL = "staff@jointclub-kobe.com";
 
     // ── LIFF 初期化 ────────────────────────────────────────────
     const LIFF_ID = "2010337371-g1ra1deL";
@@ -64,15 +66,35 @@
       })
       .catch(e => console.warn("LIFF init error:", e));
 
-    // ── Auth 初期化 ────────────────────────────────────────────
-    signInAnonymously(auth);
-    onAuthStateChanged(auth, u => { currentUser = u; });
-
-    // ── Firestore リッスン（管理画面用）──────────────────────
+    // ── Firestore（予約データ）────────────────────────────────
     const resRef = collection(db, "artifacts", APP_ID, "public", "data", "reservations");
-    onSnapshot(resRef, snap => {
-      reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      renderAdmin();
+    let unsubscribeReservations = null;
+
+    // 予約一覧の読み取りは管理者ログイン中だけ（Firestore ルールでも制限）
+    function startAdminListener() {
+      if (unsubscribeReservations) return;
+      unsubscribeReservations = onSnapshot(resRef, snap => {
+        reservations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderAdmin();
+      }, e => console.error("予約データの読み込みに失敗しました:", e));
+    }
+    function stopAdminListener() {
+      if (unsubscribeReservations) unsubscribeReservations();
+      unsubscribeReservations = null;
+      reservations = [];
+    }
+
+    // ── Auth 初期化 ────────────────────────────────────────────
+    // お客様は匿名ログイン（予約の送信だけ可能）、スタッフはメールログイン
+    onAuthStateChanged(auth, u => {
+      currentUser = u;
+      if (!u) {
+        signInAnonymously(auth);
+        return;
+      }
+      adminUnlocked = !u.isAnonymous && u.email === ADMIN_EMAIL;
+      if (adminUnlocked) startAdminListener();
+      else stopAdminListener();
     });
 
     // ── ヘルパー ───────────────────────────────────────────────
@@ -81,6 +103,8 @@
     const offPct = p => Math.round((1 - p.price / p.listPrice) * 100);
     const count = () => Object.values(quantities).reduce((a,b) => a+b, 0);
     const fmt   = n => n.toLocaleString("ja-JP");
+    const esc   = v => String(v ?? "").replace(/[&<>"']/g, c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
     // ── 予約送信 ───────────────────────────────────────────────
     window.submitReservation = async () => {
@@ -161,16 +185,28 @@
     };
 
     // ── パスワード認証 ─────────────────────────────────────────
-    window.checkPassword = () => {
+    window.checkPassword = async () => {
       const input = document.getElementById("pwInput").value;
-      if (input === ADMIN_PASSWORD) {
+      if (!input) return;
+      try {
+        await signInWithEmailAndPassword(auth, ADMIN_EMAIL, input);
         adminUnlocked = true;
+        startAdminListener();
         document.getElementById("pwError").classList.add("hidden");
+        document.getElementById("pwInput").value = "";
         showTab("admin");
-      } else {
+      } catch (e) {
+        console.warn("管理者ログイン失敗:", e.code);
         document.getElementById("pwError").classList.remove("hidden");
         document.getElementById("pwInput").value = "";
       }
+    };
+
+    window.logoutAdmin = async () => {
+      await signOut(auth);   // onAuthStateChanged で匿名ログインに戻る
+      adminUnlocked = false;
+      stopAdminListener();
+      showTab("customer");
     };
 
     // ── サンクス画面 ──────────────────────────────────────────
@@ -259,6 +295,7 @@
 
       // 予約台帳
       const tbody = document.getElementById("reservationTable");
+      document.getElementById("reservationCount").textContent = reservations.length;
       if (reservations.length === 0) {
         tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-12 text-center text-slate-300 text-sm italic">予約データがありません</td></tr>`;
         return;
@@ -268,21 +305,21 @@
         .map(r => `
           <tr class="hover:bg-slate-50/50 transition-colors align-top">
             <td class="px-4 py-4">
-              <p class="font-bold text-slate-800 text-sm">${r.customerName}</p>
+              <p class="font-bold text-slate-800 text-sm">${esc(r.customerName)}</p>
               <p class="text-[10px] text-slate-400 mt-0.5">${r.timestamp?.toDate?.().toLocaleDateString("ja-JP") ?? ""}</p>
             </td>
             <td class="px-4 py-4">
               <div class="space-y-1">
                 ${(r.items||[]).map(it => `
                   <div class="flex items-center gap-2 text-xs">
-                    <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold">${it.quantity}</span>
-                    <span class="text-slate-600">${it.productName}</span>
+                    <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold">${esc(it.quantity)}</span>
+                    <span class="text-slate-600">${esc(it.productName)}</span>
                   </div>`).join("")}
               </div>
             </td>
-            <td class="px-4 py-4 text-right font-bold text-slate-800 text-sm">¥${fmt(r.totalPrice)}</td>
+            <td class="px-4 py-4 text-right font-bold text-slate-800 text-sm">¥${fmt(Number(r.totalPrice) || 0)}</td>
             <td class="px-4 py-4 text-center">
-              <button onclick="deleteReservation('${r.id}', '${r.customerName}')"
+              <button onclick="deleteReservation('${esc(r.id)}')"
                 class="text-red-400 hover:text-red-600 transition-colors p-1" title="削除">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -297,7 +334,8 @@
     }
 
     // ── 予約削除 ───────────────────────────────────────────────
-    window.deleteReservation = async (id, name) => {
+    window.deleteReservation = async id => {
+      const name = reservations.find(r => r.id === id)?.customerName ?? "";
       if (!confirm(`「${name}」さんの予約を削除しますか？`)) return;
       try {
         await deleteDoc(doc(db, "artifacts", APP_ID, "public", "data", "reservations", id));
@@ -499,10 +537,16 @@
             </svg>
             予約台帳（<span id="reservationCount">0</span>名）
           </h3>
-          <button onclick="resetAllData()"
-            class="text-xs px-3 py-1.5 bg-red-50 text-red-500 rounded-lg border border-red-100 hover:bg-red-100 transition-colors font-medium">
-            🔄 次のキャンペーンにリセット
-          </button>
+          <div class="flex gap-2">
+            <button onclick="resetAllData()"
+              class="text-xs px-3 py-1.5 bg-red-50 text-red-500 rounded-lg border border-red-100 hover:bg-red-100 transition-colors font-medium">
+              🔄 次のキャンペーンにリセット
+            </button>
+            <button onclick="logoutAdmin()"
+              class="text-xs px-3 py-1.5 bg-slate-50 text-slate-500 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors font-medium">
+              ログアウト
+            </button>
+          </div>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left">

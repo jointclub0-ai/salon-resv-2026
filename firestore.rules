@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// 予約フォーム（/reservation/）用の Firestore セキュリティルール。
+// Firebase コンソール → Firestore Database → ルール に貼り付けて「公開」する。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'staff@jointclub-kobe.com';
+    }
+
+    match /artifacts/salon-resv-2026/public/data/reservations/{reservationId} {
+      // お客様（匿名ログイン）は予約の送信だけできる
+      allow create: if request.auth != null
+        && request.resource.data.customerName is string
+        && request.resource.data.customerName.size() > 0
+        && request.resource.data.customerName.size() <= 100
+        && request.resource.data.items is list
+        && request.resource.data.items.size() <= 20;
+
+      // 予約一覧の閲覧・削除はスタッフ（管理者アカウント）だけ
+      allow read, update, delete: if isAdmin();
+    }
+
+    // それ以外のデータへのアクセスはすべて禁止
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
