@@ -28,15 +28,15 @@
     const APP_ID = "salon-resv-2026";
 
     const PRODUCTS = [
-      { id: "W_SH_1000",  name: "シャンプー ［W］オリジナル（乾燥ケア）1000ml",         price: 7040, img: "w-shampoo.jpg" },
-      { id: "W_TR_1000",  name: "トリートメント ［W］オリジナル（乾燥ケア）1000ml",      price: 7740, img: "w-treatment.jpg" },
-      { id: "OK_SH_1000", name: "シャンプー ［オイルK］オリジナル（うねりケア）1000ml",  price: 7210, img: "w-shampoo.jpg" },
-      { id: "OK_TR_1000", name: "トリートメント ［オイルK］オリジナル（うねりケア）1000ml", price: 8440, img: "w-treatment.jpg" },
-      { id: "06",         name: "アウトバストリートメント 06  100ml",                   price: 1760, img: "outbath06.jpg" },
-      { id: "W_SH_700",   name: "シャンプー ［W］オリジナル（乾燥ケア）700ml",          price: 6280, img: "oilk-shampoo.jpg" },
-      { id: "W_TR_700",   name: "トリートメント ［W］オリジナル（乾燥ケア）700ml",       price: 6770, img: "oilk-treatment.jpg" },
-      { id: "OK_SH_700",  name: "シャンプー ［オイルK］オリジナル（うねりケア）700ml",   price: 6360, img: "oilk-shampoo.jpg" },
-      { id: "OK_TR_700",  name: "トリートメント ［オイルK］オリジナル（うねりケア）700ml", price: 7390, img: "oilk-treatment.jpg" },
+      { id: "W_SH_1000",  name: "シャンプー ［W］オリジナル（乾燥ケア）1000ml",         listPrice: 8800, price: 7040, img: "w-shampoo.jpg" },
+      { id: "W_TR_1000",  name: "トリートメント ［W］オリジナル（乾燥ケア）1000ml",      listPrice: 9680, price: 7740, img: "w-treatment.jpg" },
+      { id: "OK_SH_1000", name: "シャンプー ［オイルK］オリジナル（うねりケア）1000ml",  listPrice: 9020, price: 7210, img: "w-shampoo.jpg" },
+      { id: "OK_TR_1000", name: "トリートメント ［オイルK］オリジナル（うねりケア）1000ml", listPrice: 10560, price: 8440, img: "w-treatment.jpg" },
+      { id: "06",         name: "アウトバストリートメント 06  100ml",                   listPrice: 2200, price: 1760, img: "outbath06.jpg" },
+      { id: "W_SH_700",   name: "シャンプー ［W］オリジナル（乾燥ケア）700ml",          listPrice: 7850, price: 6280, img: "oilk-shampoo.jpg" },
+      { id: "W_TR_700",   name: "トリートメント ［W］オリジナル（乾燥ケア）700ml",       listPrice: 8470, price: 6770, img: "oilk-treatment.jpg" },
+      { id: "OK_SH_700",  name: "シャンプー ［オイルK］オリジナル（うねりケア）700ml",   listPrice: 7950, price: 6360, img: "oilk-shampoo.jpg" },
+      { id: "OK_TR_700",  name: "トリートメント ［オイルK］オリジナル（うねりケア）700ml", listPrice: 9240, price: 7390, img: "oilk-treatment.jpg" },
     ];
 
     // ── 状態 ───────────────────────────────────────────────────
@@ -77,6 +77,8 @@
 
     // ── ヘルパー ───────────────────────────────────────────────
     const total = () => PRODUCTS.reduce((s,p) => s + p.price * quantities[p.id], 0);
+    const listTotal = () => PRODUCTS.reduce((s,p) => s + p.listPrice * quantities[p.id], 0);
+    const offPct = p => Math.round((1 - p.price / p.listPrice) * 100);
     const count = () => Object.values(quantities).reduce((a,b) => a+b, 0);
     const fmt   = n => n.toLocaleString("ja-JP");
 
@@ -196,7 +198,11 @@
           <div class="p-3 flex flex-col justify-between flex-1">
             <div>
               <h4 class="font-bold text-slate-800 text-xs leading-tight">${p.name}</h4>
-              <p class="text-xs text-slate-500 mt-1">¥${fmt(p.price)}</p>
+              <p class="text-[11px] text-slate-400 mt-1">定価 <span class="line-through">¥${fmt(p.listPrice)}</span></p>
+              <p class="text-sm font-bold text-red-500 leading-tight">
+                ¥${fmt(p.price)}
+                <span class="ml-1 text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded align-middle">${offPct(p)}%OFF</span>
+              </p>
             </div>
             <div class="flex items-center justify-end gap-3 mt-2">
               <button onclick="updateQty('${p.id}',-1)"
@@ -215,6 +221,9 @@
 
       // 合計表示
       document.getElementById("totalPrice").textContent = `¥${fmt(total())}`;
+      const saved = listTotal() - total();
+      document.getElementById("totalSaved").textContent =
+        saved > 0 ? `定価 ¥${fmt(listTotal())} より ¥${fmt(saved)} おトク` : "";
       document.getElementById("totalCount").textContent = `${count()}本`;
 
       // ボタン制御
@@ -419,6 +428,7 @@
             <div>
               <p class="text-slate-400 text-xs uppercase font-bold">合計金額（概算）</p>
               <p id="totalPrice" class="text-3xl font-bold italic">¥0</p>
+              <p id="totalSaved" class="text-xs text-amber-300 font-bold mt-1"></p>
             </div>
             <div class="text-right">
               <p class="text-slate-400 text-xs font-bold uppercase">合計本数</p>
