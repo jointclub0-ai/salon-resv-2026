@@ -136,7 +136,11 @@
               `・${it.productName}　×${it.quantity}　¥${it.subtotal.toLocaleString("ja-JP")}`
             ).join("\n");
             const msg = `【ご予約確認】Repeater Fair 2026 Winter\n\n${name} 様\nご予約ありがとうございます！\n\n─────────────\n${itemLines}\n─────────────\n合計：¥${total().toLocaleString("ja-JP")}\n\n12月5日（土）以降のご来店時にお渡しいたします。\nお会いできるのを楽しみにしております！\njoint club`;
-            await liff.sendMessages([{ type: "text", text: msg }]);
+            // 2通目はLINE公式アカウントの自動応答（キーワード完全一致）用
+            await liff.sendMessages([
+              { type: "text", text: msg },
+              { type: "text", text: "予約を確定しました" }
+            ]);
           }
         } catch (liffErr) {
           console.warn("LINE message send failed:", liffErr);
