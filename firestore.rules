@@ -12,7 +12,9 @@ service cloud.firestore {
 
     match /artifacts/salon-resv-2026/public/data/reservations/{reservationId} {
       // お客様（匿名ログイン）は予約の送信だけできる
+      // 受付期限：2026-12-01 00:00 JST（= 2026-11-30 15:00 UTC）まで
       allow create: if request.auth != null
+        && request.time < timestamp.value(1796050800000)
         && request.resource.data.customerName is string
         && request.resource.data.customerName.size() > 0
         && request.resource.data.customerName.size() <= 100

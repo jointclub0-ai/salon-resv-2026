@@ -26,6 +26,9 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
     const APP_ID = "salon-resv-2026";
+    // 予約受付の締め切り（この日時以降は受付終了画面を表示。Firestore ルールでも同じ日時で制限）
+    const DEADLINE = new Date("2026-12-01T00:00:00+09:00");
+    const isClosed = () => Date.now() >= DEADLINE.getTime();
 
     const PRODUCTS = [
       { id: "W_SH_1000",  name: "シャンプー ［W］オリジナル（乾燥ケア）1000ml",         listPrice: 8800, price: 7040, img: "w-shampoo.jpg" },
@@ -109,6 +112,7 @@
     // ── 予約送信 ───────────────────────────────────────────────
     window.submitReservation = async () => {
       const name = document.getElementById("customerName").value.trim();
+      if (isClosed()) { showClosed(); return; }
       if (!currentUser || count() === 0 || !name) return;
       document.getElementById("submitBtn").disabled = true;
       document.getElementById("submitBtn").textContent = "送信中…";
@@ -148,6 +152,7 @@
 
         showThanks();
       } catch (e) {
+        if (e?.code === "permission-denied") { showClosed(); return; }
         alert("送信エラーが発生しました。もう一度お試しください。");
         console.error(e);
       } finally {
@@ -365,8 +370,16 @@
       }
     };
 
+    // ── 受付終了画面 ──────────────────────────────────────────
+    function showClosed() {
+      document.getElementById("formView").classList.add("hidden");
+      document.getElementById("thanksView").classList.add("hidden");
+      document.getElementById("closedView").classList.remove("hidden");
+    }
+
     // ── 初回描画 ───────────────────────────────────────────────
     document.addEventListener("DOMContentLoaded", () => {
+      if (isClosed()) showClosed();
       renderForm();
       document.getElementById("customerName").addEventListener("input", renderForm);
     });
@@ -418,6 +431,19 @@
     <div id="customerView">
 
       <!-- 予約フォーム -->
+      <!-- 受付終了画面（DEADLINE 以降に表示） -->
+      <div id="closedView" class="hidden max-w-md mx-auto">
+        <div class="bg-white p-8 rounded-3xl shadow-xl text-center space-y-5">
+          <p class="text-[10px] font-bold tracking-widest text-slate-400 uppercase">Repeater Fair 2026 Winter</p>
+          <h2 class="text-2xl font-bold text-slate-800">ご予約の受付は終了しました</h2>
+          <p class="text-slate-600 text-sm leading-relaxed">
+            たくさんのご予約、誠にありがとうございました。<br>
+            ご予約いただいた商品は、12月5日（土）以降の<br>ご来店時にお渡しいたします。
+          </p>
+          <p class="text-slate-400 text-xs">ご不明な点はお電話またはLINEでお問い合わせください。<br>joint club</p>
+        </div>
+      </div>
+
       <div id="formView" class="max-w-md mx-auto space-y-4">
 
         <!-- キャンペーン案内 -->
@@ -453,7 +479,7 @@
                 お名前
                 <span class="text-[10px] bg-red-500 text-white px-1.5 py-0.5 rounded">必須</span>
               </label>
-              <input id="customerName" type="text" placeholder="例：山田 花子" autocomplete="name"
+              <input id="customerName" type="text" placeholder="例：山田 花子" autocomplete="name" maxlength="100"
                 class="w-full mt-2 px-4 py-3 border-2 border-slate-300 rounded-xl text-lg font-medium
                        placeholder:text-slate-300 focus:outline-none focus:border-slate-800 focus:ring-0" />
               <p class="text-[11px] text-slate-400 mt-1.5">ご来店時の受け取り確認に使います。フルネームでご入力ください。</p>
