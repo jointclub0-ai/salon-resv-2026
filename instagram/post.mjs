@@ -20,12 +20,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateQueue } from "./validate.mjs";
 import { generateCaption, loadProfile } from "./caption.mjs";
+import { prepareImage } from "./prepare.mjs";
+import { execFileSync } from "node:child_process";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
 const QUEUE = path.join(here, "queue.json");
 const POSTED = path.join(here, "posted.json");
 const IMAGES_DIR = path.join(here, "images");
+const PROCESSED_DIR = path.join(here, "processed");
 
 const DRY_RUN = ["1", "true", "yes"].includes(String(process.env.DRY_RUN || "").toLowerCase());
 const HOST = process.env.IG_GRAPH_HOST || "graph.facebook.com";
@@ -122,18 +125,43 @@ async function waitReady(containerId) {
   throw new Error("メディアの準備がタイムアウトしました。");
 }
 
-async function publish(post, caption) {
+// 整えた写真をリポジトリに保存して push し、すぐに見られる URL（raw.githubusercontent.com）を返す。
+// GitHub Actions の外（手元のテストなど）では、ホームページの URL を返す。
+async function hostImages(rels) {
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (!repo) return rels.map(toPublicUrl);
+  const git = (...args) => execFileSync("git", args, { cwd: repoRoot, encoding: "utf8" }).trim();
+  git("add", ...rels);
+  if (git("diff", "--cached", "--name-only")) {
+    git("commit", "-m", "Instagram 用に写真を整えました");
+    git("pull", "--rebase");
+    git("push");
+  }
+  const sha = git("rev-parse", "HEAD");
+  const urls = rels.map((r) => `https://raw.githubusercontent.com/${repo}/${sha}/${r.split("/").map(encodeURIComponent).join("/")}`);
+  // push 直後に見えるようになるまで少し待つ
+  for (const url of urls) {
+    for (let i = 0; i < 12; i++) {
+      const res = await fetch(url, { method: "HEAD" }).catch(() => null);
+      if (res && res.ok) break;
+      await sleep(5000);
+    }
+  }
+  return urls;
+}
+
+async function publish(imageUrls, caption) {
   const user = process.env.IG_USER_ID;
-  const images = [].concat(post.image);
+  const images = imageUrls;
   let creationId;
 
   if (images.length === 1) {
-    const { id } = await api("POST", `${user}/media`, { image_url: toPublicUrl(images[0]), caption });
+    const { id } = await api("POST", `${user}/media`, { image_url: images[0], caption });
     creationId = id;
   } else {
     const children = [];
     for (const img of images) {
-      const { id } = await api("POST", `${user}/media`, { image_url: toPublicUrl(img), is_carousel_item: "true" });
+      const { id } = await api("POST", `${user}/media`, { image_url: img, is_carousel_item: "true" });
       await waitReady(id);
       children.push(id);
     }
@@ -168,7 +196,18 @@ async function main() {
   }
 
   console.log(`次の投稿: ${post.id}`);
-  console.log(`画像: ${[].concat(post.image).map(toPublicUrl).join(", ")}`);
+
+  // 写真を Instagram の縦横比などに合わせて整える（URL で指定した画像はそのまま）
+  const prepared = [];
+  for (const img of [].concat(post.image)) {
+    if (/^https?:\/\//.test(img)) {
+      prepared.push({ url: img });
+      continue;
+    }
+    const out = await prepareImage(path.join(repoRoot, img.replace(/^\/+/, "")), PROCESSED_DIR);
+    prepared.push({ file: out, rel: path.relative(repoRoot, out).split(path.sep).join("/") });
+  }
+  console.log(`画像: ${prepared.map((p) => p.rel || p.url).join(", ")}`);
 
   let full = { ...post };
   if (!post.caption) {
@@ -182,10 +221,7 @@ async function main() {
     }
     const profile = loadProfile(here);
     const recent = posted.slice(-5).map((p) => p.caption).filter(Boolean);
-    const images = [].concat(post.image).map((img) => ({
-      file: path.join(repoRoot, img.replace(/^\/+/, "")),
-      url: toPublicUrl(img),
-    }));
+    const images = prepared.map((p) => ({ file: p.file || "", url: p.url || toPublicUrl(p.rel) }));
     const ai = await generateCaption({ images, memo: post.memo, profile, recent });
     // 手で指定したハッシュタグがあれば、それを先に並べる
     full = { ...post, caption: ai.caption, hashtags: [...new Set([...(post.hashtags || []), ...ai.hashtags])].slice(0, 30) };
@@ -204,7 +240,10 @@ async function main() {
     process.exit(1);
   }
 
-  const { mediaId, permalink } = await publish(post, caption);
+  const local = prepared.filter((p) => p.rel).map((p) => p.rel);
+  const hosted = local.length ? await hostImages(local) : [];
+  const imageUrls = prepared.map((p) => (p.url ? p.url : hosted[local.indexOf(p.rel)]));
+  const { mediaId, permalink } = await publish(imageUrls, caption);
   posted.push({ id: post.id, mediaId, permalink: permalink || null, postedAt: new Date().toISOString(), caption });
   await writeFile(POSTED, JSON.stringify(posted, null, 2) + "\n");
   console.log(`投稿しました: ${permalink || mediaId}`);
