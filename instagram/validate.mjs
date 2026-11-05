@@ -51,16 +51,24 @@ export function validateQueue(queue, repoRoot) {
 }
 
 // instagram/images/ に置いた写真のチェック（JPEG以外は投稿できない）
-export function validateImageFolder(dir) {
+export function validateImageFolder(dir, label = "images") {
   const problems = [];
   if (!existsSync(dir)) return problems;
   for (const name of readdirSync(dir)) {
     if (name.startsWith(".") || /\.txt$/i.test(name)) continue;
     const file = path.join(dir, name);
-    if (!/\.jpe?g$/i.test(name) || !isJpeg(file)) {
-      problems.push(`images/${name}: JPEG（.jpg）にしてください。iPhoneの写真は「互換性優先」で書き出すとJPEGになります`);
+    if (statSync(file).isDirectory()) {
+      if (label !== "images") {
+        problems.push(`${label}/${name}: フォルダの中にさらにフォルダは入れられません`);
+        continue;
+      }
+      const photos = readdirSync(file).filter((n) => /\.jpe?g$/i.test(n));
+      if (photos.length > 10) problems.push(`${label}/${name}: 1回の投稿は10枚までです（今は${photos.length}枚）`);
+      problems.push(...validateImageFolder(file, `${label}/${name}`));
+    } else if (!/\.jpe?g$/i.test(name) || !isJpeg(file)) {
+      problems.push(`${label}/${name}: JPEG（.jpg）にしてください。iPhoneの写真は「互換性優先」で書き出すとJPEGになります`);
     } else if (statSync(file).size > 8 * 1024 * 1024) {
-      problems.push(`images/${name}: 8MBを超えているので小さくしてください`);
+      problems.push(`${label}/${name}: 8MBを超えているので小さくしてください`);
     }
   }
   return problems;

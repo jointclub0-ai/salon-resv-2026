@@ -1,7 +1,7 @@
 // Instagram 自動投稿スクリプト
 // 次の1件を投稿し、結果を posted.json に記録する。
 //   1. queue.json の中で「まだ投稿していない・下書きでない・公開日を過ぎた」最初の1件
-//   2. なければ instagram/images/ の写真を名前順に1枚
+//   2. なければ instagram/images/ の写真を名前順に1枚（フォルダならまとめてスワイプ投稿）
 // 本文(caption)がなければ、AI（Claude）が写真を見て本文とハッシュタグを作る。
 //
 // 必要な環境変数:
@@ -68,23 +68,47 @@ function isJpegFile(file) {
 
 // instagram/images/ に置かれた写真を、名前順に投稿候補にする。
 // 同じ名前の .txt があれば、その中身を AI へのメモとして使う（例: photo1.jpg と photo1.txt）。
+// フォルダごと入れると、その中の写真（2〜10枚）をまとめて1回のスワイプ投稿にする。
+// フォルダの中の .txt は、その投稿の AI へのメモになる。
+const isPostableJpeg = (file) => isJpegFile(file) && statSync(file).size <= 8 * 1024 * 1024;
+const byName = (a, b) => a.localeCompare(b, "ja", { numeric: true });
+const toRel = (file) => path.relative(repoRoot, file).split(path.sep).join("/");
+
 export function folderPosts(dir = IMAGES_DIR) {
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((n) => /\.jpe?g$/i.test(n) && !n.startsWith("."))
-    .sort((a, b) => a.localeCompare(b, "ja", { numeric: true }))
-    .filter((n) => {
-      const file = path.join(dir, n);
-      return isJpegFile(file) && statSync(file).size <= 8 * 1024 * 1024;
-    })
-    .map((n) => {
+  const posts = [];
+  for (const n of readdirSync(dir).filter((n) => !n.startsWith(".")).sort(byName)) {
+    const full = path.join(dir, n);
+    if (statSync(full).isDirectory()) {
+      const files = readdirSync(full).filter((f) => !f.startsWith("."));
+      const photos = files
+        .filter((f) => /\.jpe?g$/i.test(f))
+        .sort(byName)
+        .map((f) => path.join(full, f))
+        .filter(isPostableJpeg)
+        .slice(0, 10);
+      if (photos.length === 0) continue;
+      const memo = files
+        .filter((f) => /\.txt$/i.test(f))
+        .sort(byName)
+        .map((f) => readFileSync(path.join(full, f), "utf8").trim())
+        .filter(Boolean)
+        .join("\n");
+      posts.push({
+        id: `images/${n}/`,
+        image: photos.length === 1 ? toRel(photos[0]) : photos.map(toRel),
+        memo: memo || undefined,
+      });
+    } else if (/\.jpe?g$/i.test(n) && isPostableJpeg(full)) {
       const memoFile = path.join(dir, n.replace(/\.jpe?g$/i, ".txt"));
-      return {
+      posts.push({
         id: `images/${n}`,
-        image: path.relative(repoRoot, path.join(dir, n)).split(path.sep).join("/"),
+        image: toRel(full),
         memo: existsSync(memoFile) ? readFileSync(memoFile, "utf8").trim() : undefined,
-      };
-    });
+      });
+    }
+  }
+  return posts;
 }
 
 // queue.json の投稿を先に、そのあと images/ フォルダの写真を順番に。
@@ -94,7 +118,7 @@ export function pickNext(queue, posted, today = todayJst(), folder = []) {
   if (fromQueue) return fromQueue;
   // queue.json で使っている写真は、フォルダからは二重に投稿しない
   const used = new Set(queue.flatMap((p) => [].concat(p.image || [])));
-  return folder.find((p) => !done.has(p.id) && !used.has(p.image));
+  return folder.find((p) => !done.has(p.id) && ![].concat(p.image).some((i) => used.has(i)));
 }
 
 async function api(method, endpoint, params, host = HOST) {
