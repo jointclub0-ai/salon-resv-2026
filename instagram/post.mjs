@@ -31,7 +31,8 @@ const IMAGES_DIR = path.join(here, "images");
 const PROCESSED_DIR = path.join(here, "processed");
 
 const DRY_RUN = ["1", "true", "yes"].includes(String(process.env.DRY_RUN || "").toLowerCase());
-const HOST = process.env.IG_GRAPH_HOST || "graph.facebook.com";
+let HOST = process.env.IG_GRAPH_HOST || "graph.facebook.com";
+let USER_ID = process.env.IG_USER_ID;
 const VERSION = process.env.IG_API_VERSION || "v23.0";
 const SITE = (process.env.SITE_BASE_URL || "https://jointclub-kobe.com").replace(/\/$/, "");
 
@@ -96,8 +97,8 @@ export function pickNext(queue, posted, today = todayJst(), folder = []) {
   return folder.find((p) => !done.has(p.id) && !used.has(p.image));
 }
 
-async function api(method, endpoint, params) {
-  const url = new URL(`https://${HOST}/${VERSION}/${endpoint}`);
+async function api(method, endpoint, params, host = HOST) {
+  const url = new URL(`https://${host}/${VERSION}/${endpoint}`);
   const body = new URLSearchParams({ ...params, access_token: process.env.IG_ACCESS_TOKEN });
   const res = method === "GET"
     ? await fetch(`${url}?${body}`)
@@ -150,8 +151,39 @@ async function hostImages(rels) {
   return urls;
 }
 
+// トークンの種類によって、使う API のサーバー（graph.facebook.com / graph.instagram.com）や
+// アカウントIDの形が違うので、実際に問い合わせて使えるものを探す。
+export async function resolveAccount() {
+  const hosts = [...new Set([HOST, "graph.facebook.com", "graph.instagram.com"])];
+  const notes = [];
+  for (const host of hosts) {
+    try {
+      const r = await api("GET", USER_ID, { fields: "id,username" }, host);
+      return { host, userId: r.id, username: r.username };
+    } catch (e) {
+      notes.push(`${host} / IG_USER_ID: ${e.message}`);
+    }
+  }
+  // IG_USER_ID が合わない場合、トークンの持ち主から Instagram アカウントを探す
+  try {
+    const r = await api("GET", "me", { fields: "user_id,username" }, "graph.instagram.com");
+    if (r.user_id) return { host: "graph.instagram.com", userId: String(r.user_id), username: r.username };
+  } catch (e) {
+    notes.push(`graph.instagram.com / me: ${e.message}`);
+  }
+  try {
+    const r = await api("GET", "me/accounts", { fields: "instagram_business_account{id,username}" }, "graph.facebook.com");
+    const ig = (r.data || []).map((p) => p.instagram_business_account).find(Boolean);
+    if (ig) return { host: "graph.facebook.com", userId: ig.id, username: ig.username };
+    notes.push("graph.facebook.com / me/accounts: Instagram アカウントが見つかりません");
+  } catch (e) {
+    notes.push(`graph.facebook.com / me/accounts: ${e.message}`);
+  }
+  throw new Error("Instagram アカウントに接続できませんでした。\n- " + notes.join("\n- "));
+}
+
 async function publish(imageUrls, caption) {
-  const user = process.env.IG_USER_ID;
+  const user = USER_ID;
   const images = imageUrls;
   let creationId;
 
@@ -231,13 +263,26 @@ async function main() {
   const caption = buildCaption(full);
   console.log("本文:\n" + caption);
 
+  if (!process.env.IG_USER_ID || !process.env.IG_ACCESS_TOKEN) {
+    if (DRY_RUN) {
+      console.log("\n[ドライラン] 実際の投稿はしていません。");
+      return;
+    }
+    console.error("IG_USER_ID と IG_ACCESS_TOKEN を GitHub の Secrets に設定してください。");
+    process.exit(1);
+  }
+
+  const account = await resolveAccount();
+  HOST = account.host;
+  USER_ID = account.userId;
+  console.log(`\nInstagram 接続OK: @${account.username || "?"}（${HOST}）`);
+  if (USER_ID !== process.env.IG_USER_ID) {
+    console.log("::notice::IG_USER_ID とは別のIDで接続しました。Secrets の IG_USER_ID を直すとこの表示は消えます。");
+  }
+
   if (DRY_RUN) {
     console.log("\n[ドライラン] 実際の投稿はしていません。");
     return;
-  }
-  if (!process.env.IG_USER_ID || !process.env.IG_ACCESS_TOKEN) {
-    console.error("IG_USER_ID と IG_ACCESS_TOKEN を GitHub の Secrets に設定してください。");
-    process.exit(1);
   }
 
   const local = prepared.filter((p) => p.rel).map((p) => p.rel);
