@@ -58,13 +58,18 @@ GitHub のこのリポジトリで **Settings → Secrets and variables → Acti
 
 | 名前 | 中身 | どこで手に入れるか |
 |---|---|---|
-| `IG_USER_ID` | Instagram アカウントのID | Meta for Developers（developers.facebook.com）でアプリを作って確認 |
-| `IG_ACCESS_TOKEN` | Instagram の長期アクセストークン | 同上（投稿の権限 `instagram_business_content_publish` を付けて発行） |
-| `ANTHROPIC_API_KEY` | AI（Claude）のAPIキー | platform.claude.com でキーを作成 |
+| `IG_USER_ID` | Instagram アカウントのID（数字） | Meta for Developers のアプリ画面「2. アクセストークンを生成する」に表示 |
+| `IG_ACCESS_TOKEN` | Instagram のアクセストークン | 同じ画面の「トークンを生成」（一度しか表示されない） |
+| `ANTHROPIC_API_KEY` | AI（Claude）のAPIキー | platform.claude.com の「API Keys」で作成 |
 
-「Instagramでログイン」方式でトークンを作った場合は、同じ画面の **Variables** タブで `IG_GRAPH_HOST` = `graph.instagram.com` も登録します。
+Meta 側の準備（2026年11月時点の画面）：
+1. developers.facebook.com でアプリを作成し、ユースケース「Instagramでメッセージとコンテンツを管理」を選ぶ
+2. ユースケースのカスタマイズ →「API setup with Unified login」でビジネスポートフォリオをリンクし、「新しい設定を作成」
+3. 「役割」で jointclub_kobe を「Instagramテスター」に追加し、instagram.com の「設定 → アプリとウェブサイト → テスターへの招待」で承認
+4. 「アカウントを追加」→「トークンを生成」
 
-Instagram の長期アクセストークンは約60日で切れます。切れると投稿が失敗し、GitHub からメールが届きます。
+この方式のトークン（EAA で始まる）は期限切れになりません。もし投稿が失敗してトークンを作り直したときは、`IG_ACCESS_TOKEN` を上書きしてください。
+（古い「Instagramでログイン」方式の IGAA で始まるトークンを使う場合だけ、**Variables** タブで `IG_GRAPH_HOST` = `graph.instagram.com` を登録します）
 
 ## 試しに動かす
 
