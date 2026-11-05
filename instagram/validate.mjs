@@ -1,7 +1,7 @@
 // queue.json の中身をチェックする。問題があればメッセージの配列を返す。
 // 単体で実行すると結果を表示する:  node instagram/validate.mjs
 
-import { readFileSync, existsSync, openSync, readSync, closeSync } from "node:fs";
+import { readFileSync, existsSync, openSync, readSync, closeSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,7 +25,7 @@ export function validateQueue(queue, repoRoot) {
     else if (ids.has(p.id)) problems.push(`${where}: id が重複しています`);
     ids.add(p.id);
 
-    if (!p.caption || typeof p.caption !== "string") problems.push(`${where}: caption（本文）がありません`);
+    if (p.caption != null && typeof p.caption !== "string") problems.push(`${where}: caption（本文）は文字で書いてください`);
     const tags = p.hashtags || [];
     if (!Array.isArray(tags)) problems.push(`${where}: hashtags は [ ... ] の配列にしてください`);
     else if (tags.length > 30) problems.push(`${where}: ハッシュタグは30個までです（${tags.length}個）`);
@@ -50,13 +50,29 @@ export function validateQueue(queue, repoRoot) {
   return problems;
 }
 
+// instagram/images/ に置いた写真のチェック（JPEG以外は投稿できない）
+export function validateImageFolder(dir) {
+  const problems = [];
+  if (!existsSync(dir)) return problems;
+  for (const name of readdirSync(dir)) {
+    if (name.startsWith(".") || /\.txt$/i.test(name)) continue;
+    const file = path.join(dir, name);
+    if (!/\.jpe?g$/i.test(name) || !isJpeg(file)) {
+      problems.push(`images/${name}: JPEG（.jpg）にしてください。iPhoneの写真は「互換性優先」で書き出すとJPEGになります`);
+    } else if (statSync(file).size > 8 * 1024 * 1024) {
+      problems.push(`images/${name}: 8MBを超えているので小さくしてください`);
+    }
+  }
+  return problems;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const queue = JSON.parse(readFileSync(path.join(here, "queue.json"), "utf8"));
-  const problems = validateQueue(queue, path.resolve(here, ".."));
+  const problems = [...validateQueue(queue, path.resolve(here, "..")), ...validateImageFolder(path.join(here, "images"))];
   if (problems.length) {
     console.error("問題があります:\n- " + problems.join("\n- "));
     process.exit(1);
   }
-  console.log(`OK: ${queue.length}件の投稿予約に問題はありません。`);
+  console.log("OK: 問題はありません。");
 }
