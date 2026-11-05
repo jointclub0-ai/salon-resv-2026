@@ -202,6 +202,29 @@ export async function resolveAccount() {
   } catch (e) {
     notes.push(`graph.facebook.com / debug_token: ${e.message}`);
   }
+  // システムユーザーのトークンの場合、ビジネスポートフォリオ経由で Instagram アカウントを探す
+  try {
+    const r = await api("GET", "me/businesses", {
+      fields: "id,name,owned_instagram_accounts{id,username},instagram_business_accounts{id,username}",
+    }, "graph.facebook.com");
+    const found = [];
+    for (const b of r.data || []) {
+      for (const ig of [...(b.owned_instagram_accounts?.data || []), ...(b.instagram_business_accounts?.data || [])]) {
+        found.push(`${ig.username || "?"}（${ig.id}）`);
+        if (ig.username) return { host: "graph.facebook.com", userId: ig.id, username: ig.username };
+      }
+    }
+    notes.push(`graph.facebook.com / me/businesses: ${(r.data || []).map((b) => b.name).join(",") || "なし"} / Instagram: ${found.join(",") || "なし"}`);
+  } catch (e) {
+    notes.push(`graph.facebook.com / me/businesses: ${e.message}`);
+  }
+  try {
+    const r = await api("GET", "me/permissions", {}, "graph.facebook.com");
+    const granted = (r.data || []).filter((p) => p.status === "granted").map((p) => p.permission);
+    notes.push(`許可されている権限: ${granted.join(",") || "なし"}`);
+  } catch (e) {
+    notes.push(`graph.facebook.com / me/permissions: ${e.message}`);
+  }
   try {
     const me = await api("GET", "me", { fields: "id,name" }, "graph.facebook.com");
     notes.push(`トークンの持ち主: ${me.name || ""}（${me.id}）`);
