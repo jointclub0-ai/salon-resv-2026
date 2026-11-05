@@ -14,7 +14,7 @@
 //   SITE_BASE_URL    既定 https://jointclub-kobe.com （画像の公開URLの元）
 //   ANTHROPIC_API_KEY  本文(caption)がない投稿を AI に書いてもらうときに必要
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, appendFile } from "node:fs/promises";
 import { existsSync, readdirSync, readFileSync, statSync, openSync, readSync, closeSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +29,9 @@ const QUEUE = path.join(here, "queue.json");
 const POSTED = path.join(here, "posted.json");
 const IMAGES_DIR = path.join(here, "images");
 const PROCESSED_DIR = path.join(here, "processed");
+// 朝のプレビューで作った投稿文。この名前のファイルがあれば、AIは使わずこの文章をそのまま投稿する。
+export const CAPTION_FILE = "投稿文.txt";
+const PREVIEW = ["1", "true", "yes"].includes(String(process.env.PREVIEW || "").toLowerCase());
 
 const DRY_RUN = ["1", "true", "yes"].includes(String(process.env.DRY_RUN || "").toLowerCase());
 let HOST = process.env.IG_GRAPH_HOST || "graph.facebook.com";
@@ -89,7 +92,7 @@ export function folderPosts(dir = IMAGES_DIR) {
         .slice(0, 10);
       if (photos.length === 0) continue;
       const memo = files
-        .filter((f) => /\.txt$/i.test(f))
+        .filter((f) => /\.txt$/i.test(f) && f !== CAPTION_FILE)
         .sort(byName)
         .map((f) => readFileSync(path.join(full, f), "utf8").trim())
         .filter(Boolean)
@@ -97,6 +100,7 @@ export function folderPosts(dir = IMAGES_DIR) {
       posts.push({
         id: `images/${n}/`,
         notBefore: dateFromName(n),
+        captionFile: toRel(path.join(full, CAPTION_FILE)),
         image: photos.length === 1 ? toRel(photos[0]) : photos.map(toRel),
         memo: memo || undefined,
       });
@@ -105,6 +109,7 @@ export function folderPosts(dir = IMAGES_DIR) {
       posts.push({
         id: `images/${n}`,
         notBefore: dateFromName(n),
+        captionFile: toRel(path.join(dir, n.replace(/\.jpe?g$/i, "") + "." + CAPTION_FILE)),
         image: toRel(full),
         memo: existsSync(memoFile) ? readFileSync(memoFile, "utf8").trim() : undefined,
       });
@@ -349,7 +354,13 @@ async function main() {
   console.log(`画像: ${prepared.map((p) => p.rel || p.url).join(", ")}`);
 
   let full = { ...post };
-  if (!post.caption) {
+  const captionPath = post.captionFile && path.join(repoRoot, post.captionFile);
+  const savedCaption = captionPath && existsSync(captionPath) ? readFileSync(captionPath, "utf8").trim() : "";
+  if (savedCaption) {
+    // 朝に確認・修正された投稿文をそのまま使う
+    full = { ...post, caption: savedCaption, hashtags: [] };
+    console.log(`（本文は ${post.captionFile} を使います）`);
+  } else if (!post.caption) {
     if (!process.env.ANTHROPIC_API_KEY) {
       if (DRY_RUN) {
         console.log("本文: （AIが作る予定。ANTHROPIC_API_KEY がないので、ドライランでは作りません）");
@@ -369,6 +380,22 @@ async function main() {
 
   const caption = buildCaption(full);
   console.log("本文:\n" + caption);
+
+  if (PREVIEW) {
+    // 朝のプレビュー：投稿文をファイルに保存して、確認・修正できるようにする（投稿はしない）
+    if (captionPath && !savedCaption) await writeFile(captionPath, caption + "\n");
+    if (process.env.PREVIEW_OUT) {
+      await writeFile(process.env.PREVIEW_OUT, JSON.stringify({
+        date: today,
+        id: post.id,
+        images: [].concat(post.image),
+        caption,
+        captionFile: post.captionFile || null,
+      }, null, 2));
+    }
+    console.log("\n[プレビュー] 投稿はしていません。");
+    return;
+  }
 
   if (!process.env.IG_USER_ID || !process.env.IG_ACCESS_TOKEN) {
     if (DRY_RUN) {
@@ -398,6 +425,7 @@ async function main() {
   const { mediaId, permalink } = await publish(imageUrls, caption);
   posted.push({ id: post.id, mediaId, permalink: permalink || null, postedAt: new Date().toISOString(), caption });
   await writeFile(POSTED, JSON.stringify(posted, null, 2) + "\n");
+  if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, "posted=1\n");
   console.log(`投稿しました: ${permalink || mediaId}`);
 }
 

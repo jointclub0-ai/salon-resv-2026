@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: instagram-post
@@ -37,6 +38,7 @@ jobs:
       - name: 投稿カレンダーのフォルダを先まで作る
         run: node instagram/calendar.mjs
       - name: 投稿する
+        id: post
         env:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
@@ -53,3 +55,11 @@ jobs:
           git commit -m "Instagram 投稿の記録・カレンダーを更新"
           git pull --rebase
           git push
+      - name: 投稿予定の Issue を閉じる
+        if: steps.post.outputs.posted == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --label instagram-preview --state open --json number -q '.[].number'); do
+            gh issue close "$n" --comment "投稿しました。" || true
+          done
