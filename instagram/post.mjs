@@ -179,6 +179,35 @@ export async function resolveAccount() {
   } catch (e) {
     notes.push(`graph.facebook.com / me/accounts: ${e.message}`);
   }
+  // トークンの中身（権限と、許可された Instagram アカウントのID）を調べる
+  try {
+    const token = process.env.IG_ACCESS_TOKEN;
+    const { data } = await api("GET", "debug_token", { input_token: token }, "graph.facebook.com");
+    const targets = new Set();
+    for (const g of data.granular_scopes || []) {
+      if (g.scope.startsWith("instagram")) (g.target_ids || []).forEach((id) => targets.add(String(id)));
+    }
+    notes.push(`トークン: type=${data.type} valid=${data.is_valid} scopes=${(data.scopes || []).join(",")} instagram対象ID=${[...targets].join(",") || "なし"}`);
+    for (const id of targets) {
+      try {
+        const r = await api("GET", id, { fields: "id,username" }, "graph.facebook.com");
+        if (r.username) return { host: "graph.facebook.com", userId: r.id, username: r.username };
+        // ID が Facebook ページの場合は、つながっている Instagram アカウントを見る
+        const p = await api("GET", id, { fields: "instagram_business_account{id,username}" }, "graph.facebook.com");
+        if (p.instagram_business_account) return { host: "graph.facebook.com", userId: p.instagram_business_account.id, username: p.instagram_business_account.username };
+      } catch (e) {
+        notes.push(`graph.facebook.com / ${id}: ${e.message}`);
+      }
+    }
+  } catch (e) {
+    notes.push(`graph.facebook.com / debug_token: ${e.message}`);
+  }
+  try {
+    const me = await api("GET", "me", { fields: "id,name" }, "graph.facebook.com");
+    notes.push(`トークンの持ち主: ${me.name || ""}（${me.id}）`);
+  } catch (e) {
+    notes.push(`graph.facebook.com / me: ${e.message}`);
+  }
   throw new Error("Instagram アカウントに接続できませんでした。\n- " + notes.join("\n- "));
 }
 
