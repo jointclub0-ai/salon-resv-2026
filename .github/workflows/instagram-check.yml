@@ -1,0 +1,23 @@
+name: Instagram 投稿予約のチェック
+
+on:
+  pull_request:
+    paths: ["instagram/**"]
+  push:
+    branches: [main]
+    paths: ["instagram/**"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: instagram
+      - run: node instagram/validate.mjs
+      - run: node instagram/post.mjs
+        env:
+          DRY_RUN: "1"

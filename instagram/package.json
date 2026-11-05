@@ -1,0 +1,13 @@
+{
+  "name": "jointclub-instagram-autopost",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node validate.mjs",
+    "post": "node post.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.5.0",
+    "zod": "^4.6.7"
+  }
+}

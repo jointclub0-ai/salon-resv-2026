@@ -1,0 +1,17 @@
+[
+  {
+    "id": "sample-oilk-shampoo",
+    "draft": true,
+    "image": "oilk-shampoo.jpg",
+    "caption": "【見本】サロン専売のOILKシャンプー。\n髪にやさしく、しっとりまとまる洗い上がりです。\n気になる方はスタッフまでお気軽にどうぞ。",
+    "hashtags": ["jointclub", "神戸西区美容室", "髪質改善", "縮毛矯正", "サロン専売品"]
+  },
+  {
+    "id": "sample-treatment-carousel",
+    "draft": true,
+    "notBefore": "2026-11-10",
+    "image": ["w-shampoo.jpg", "w-treatment.jpg"],
+    "caption": "【見本】画像を2枚以上並べると、スワイプできる投稿（カルーセル）になります。",
+    "hashtags": ["jointclub", "神戸西区美容室"]
+  }
+]
