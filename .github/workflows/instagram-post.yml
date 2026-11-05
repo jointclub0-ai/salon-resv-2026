@@ -34,6 +34,8 @@ jobs:
         run: |
           git config user.name "instagram-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: 投稿カレンダーのフォルダを先まで作る
+        run: node instagram/calendar.mjs
       - name: 投稿する
         env:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
@@ -43,10 +45,11 @@ jobs:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
           MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: node instagram/post.mjs
-      - name: 投稿の記録を保存
+      - name: 投稿の記録とカレンダーを保存
+        if: always()
         run: |
-          if git diff --quiet -- instagram/posted.json; then exit 0; fi
-          git add instagram/posted.json
-          git commit -m "Instagram に投稿しました"
+          git add instagram/posted.json instagram/images
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Instagram 投稿の記録・カレンダーを更新"
           git pull --rebase
           git push

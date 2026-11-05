@@ -115,9 +115,9 @@ export function folderPosts(dir = IMAGES_DIR) {
 
 // 名前の先頭の日付（2026-11-20 / 2026.11.20 / 20261120 など）を YYYY-MM-DD にする。なければ undefined。
 export function dateFromName(name) {
-  const m = /^(\d{4})[-._]?(\d{1,2})[-._]?(\d{1,2})(?!\d)/.exec(name);
+  const m = /^(\d{4})([-._])(\d{1,2})\2(\d{1,2})(?!\d)/.exec(name) || /^(\d{4})()(\d{2})(\d{2})(?!\d)/.exec(name);
   if (!m) return undefined;
-  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const [y, mo, d] = [Number(m[1]), Number(m[3]), Number(m[4])];
   if (y < 2020 || mo < 1 || mo > 12 || d < 1 || d > 31) return undefined;
   return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
