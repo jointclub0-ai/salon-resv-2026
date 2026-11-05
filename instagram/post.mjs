@@ -1,7 +1,7 @@
 // Instagram 自動投稿スクリプト
 // 次の1件を投稿し、結果を posted.json に記録する。
 //   1. queue.json の中で「まだ投稿していない・下書きでない・公開日を過ぎた」最初の1件
-//   2. なければ instagram/images/ の写真を名前順に1枚（フォルダならまとめてスワイプ投稿）
+//   2. instagram/images/ の写真（名前が日付なら、その日以降に投稿。フォルダならまとめてスワイプ投稿）
 // 本文(caption)がなければ、AI（Claude）が写真を見て本文とハッシュタグを作る。
 //
 // 必要な環境変数:
@@ -96,6 +96,7 @@ export function folderPosts(dir = IMAGES_DIR) {
         .join("\n");
       posts.push({
         id: `images/${n}/`,
+        notBefore: dateFromName(n),
         image: photos.length === 1 ? toRel(photos[0]) : photos.map(toRel),
         memo: memo || undefined,
       });
@@ -103,6 +104,7 @@ export function folderPosts(dir = IMAGES_DIR) {
       const memoFile = path.join(dir, n.replace(/\.jpe?g$/i, ".txt"));
       posts.push({
         id: `images/${n}`,
+        notBefore: dateFromName(n),
         image: toRel(full),
         memo: existsSync(memoFile) ? readFileSync(memoFile, "utf8").trim() : undefined,
       });
@@ -111,14 +113,39 @@ export function folderPosts(dir = IMAGES_DIR) {
   return posts;
 }
 
-// queue.json の投稿を先に、そのあと images/ フォルダの写真を順番に。
-export function pickNext(queue, posted, today = todayJst(), folder = []) {
+// 名前の先頭の日付（2026-11-20 / 2026.11.20 / 20261120 など）を YYYY-MM-DD にする。なければ undefined。
+export function dateFromName(name) {
+  const m = /^(\d{4})[-._]?(\d{1,2})[-._]?(\d{1,2})(?!\d)/.exec(name);
+  if (!m) return undefined;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (y < 2020 || mo < 1 || mo > 12 || d < 1 || d > 31) return undefined;
+  return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+// いつもの投稿日（月・水・金・日）かどうか（日本時間）
+export function isRegularDay(today = todayJst()) {
+  return [0, 1, 3, 5].includes(new Date(`${today}T00:00:00Z`).getUTCDay());
+}
+
+// 次に投稿するものを選ぶ。
+//   1. queue.json の投稿（公開日を過ぎたもの）
+//   2. images/ の「日付つき」の写真・フォルダで、その日付を過ぎたもの（古い日付から）
+//   3. いつもの投稿日なら、images/ の日付なしの写真・フォルダを名前順に
+// いつもの投稿日以外は、日付つきのものだけ投稿する。
+export function pickNext(queue, posted, today = todayJst(), folder = [], regularDay = true) {
   const done = new Set(posted.map((p) => p.id));
-  const fromQueue = queue.find((p) => !p.draft && !done.has(p.id) && (!p.notBefore || p.notBefore <= today));
+  const fromQueue = queue.find(
+    (p) => !p.draft && !done.has(p.id) && (p.notBefore ? p.notBefore <= today : regularDay),
+  );
   if (fromQueue) return fromQueue;
   // queue.json で使っている写真は、フォルダからは二重に投稿しない
   const used = new Set(queue.flatMap((p) => [].concat(p.image || [])));
-  return folder.find((p) => !done.has(p.id) && ![].concat(p.image).some((i) => used.has(i)));
+  const open = folder.filter((p) => !done.has(p.id) && ![].concat(p.image).some((i) => used.has(i)));
+  const dated = open
+    .filter((p) => p.notBefore && p.notBefore <= today)
+    .sort((a, b) => a.notBefore.localeCompare(b.notBefore));
+  if (dated.length) return dated[0];
+  return regularDay ? open.find((p) => !p.notBefore) : undefined;
 }
 
 async function api(method, endpoint, params, host = HOST) {
@@ -297,9 +324,13 @@ async function main() {
     process.exit(1);
   }
 
-  const post = pickNext(queue, posted, todayJst(), folderPosts());
+  const today = todayJst();
+  const manual = process.env.MANUAL_RUN === "1";
+  const regularDay = manual || isRegularDay(today);
+  const post = pickNext(queue, posted, today, folderPosts(), regularDay);
   if (!post) {
-    console.log("::warning::投稿できる写真がありません。instagram/images/ に写真を追加してください。");
+    if (regularDay) console.log("::warning::投稿できる写真がありません。instagram/images/ に写真を追加してください。");
+    else console.log("今日はいつもの投稿日ではなく、今日の日付の写真もないのでお休みです。");
     return;
   }
 
