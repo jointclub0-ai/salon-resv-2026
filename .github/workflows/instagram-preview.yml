@@ -1,0 +1,53 @@
+name: Instagram 投稿予定の確認
+
+on:
+  schedule:
+    # 毎朝 9:00（日本時間）= 0:00 UTC。その日の19時に投稿する予定の写真と文章を Issue でお知らせ
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: instagram-post
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: instagram
+      - name: git の準備
+        run: |
+          git config user.name "instagram-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: 今日の投稿文を作る
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PREVIEW: "1"
+          PREVIEW_OUT: ${{ runner.temp }}/preview.json
+        run: node instagram/post.mjs
+      - name: 投稿文を保存
+        run: |
+          git add instagram/images
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Instagram 今日の投稿文（確認用）"
+          git pull --rebase
+          git push
+      - name: Issue でお知らせ
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f="${{ runner.temp }}/preview.json"
+          if [ ! -f "$f" ]; then echo "今日の投稿予定はありません"; exit 0; fi
+          gh label create instagram-preview --color E4405F --description "Instagram 投稿予定" --force
+          title="$(node -e 'const p=require(process.argv[1]);const [y,m,d]=p.date.split("-");console.log(`Instagram 投稿予定 ${+m}/${+d} 19時`)' "$f")"
+          node instagram/preview-issue.mjs "$f" "${{ github.repository }}" > "${{ runner.temp }}/body.md"
+          gh issue create --title "$title" --label instagram-preview --body-file "${{ runner.temp }}/body.md"
