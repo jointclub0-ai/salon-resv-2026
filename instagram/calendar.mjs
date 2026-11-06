@@ -3,7 +3,7 @@
 // フォルダに写真を入れると、その日の19時に投稿される（2枚以上ならスワイプ投稿）。
 // 過ぎた日の空フォルダは片付ける。毎日の自動投稿のときにも実行されるので、カレンダーは自動で先に伸びる。
 //
-// 使い方: node instagram/calendar.mjs [日数]   （既定 42日 = 6週間先まで）
+// 使い方: node instagram/calendar.mjs [日数]   （既定 120日 = 約4か月先まで）
 
 import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync, statSync } from "node:fs";
 import path from "node:path";
@@ -19,7 +19,7 @@ function jstDate(offsetDays = 0) {
 }
 const ymd = (d) => d.toISOString().slice(0, 10);
 
-export function calendarNames(days = 42, start = jstDate()) {
+export function calendarNames(days = 120, start = jstDate()) {
   const names = [];
   for (let i = 0; i <= days; i++) {
     const d = new Date(start.getTime() + i * 86400 * 1000);
@@ -33,7 +33,7 @@ function isEmptyFolder(dir) {
   return readdirSync(dir).every((n) => n === ".gitkeep" || n === ".DS_Store");
 }
 
-export function updateCalendar(dir = IMAGES_DIR, days = 42) {
+export function updateCalendar(dir = IMAGES_DIR, days = 120) {
   mkdirSync(dir, { recursive: true });
   const today = ymd(jstDate());
   const created = [];
@@ -59,7 +59,7 @@ export function updateCalendar(dir = IMAGES_DIR, days = 42) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const days = Number(process.argv[2]) || 42;
+  const days = Number(process.argv[2]) || 120;
   const { created, removed } = updateCalendar(IMAGES_DIR, days);
   console.log(`カレンダー: 新しく作ったフォルダ ${created.length}件${created.length ? "（" + created.join(", ") + "）" : ""}`);
   if (removed.length) console.log(`過ぎた空フォルダを片付けました: ${removed.join(", ")}`);
