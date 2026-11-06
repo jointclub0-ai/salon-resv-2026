@@ -61,6 +61,13 @@ function todayJst() {
   return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+// 日本時間でその日に投稿した記録があるか
+export function postedOn(posted, day) {
+  return posted.some(
+    (p) => p.postedAt && new Date(Date.parse(p.postedAt) + 9 * 3600 * 1000).toISOString().slice(0, 10) === day,
+  );
+}
+
 function isJpegFile(file) {
   const fd = openSync(file, "r");
   const buf = Buffer.alloc(3);
@@ -332,6 +339,11 @@ async function main() {
   const today = todayJst();
   const manual = process.env.MANUAL_RUN === "1";
   const regularDay = manual || isRegularDay(today);
+  // 自動実行は予備の時刻にも起動するので、今日すでに投稿していたら何もしない
+  if (!manual && postedOn(posted, today)) {
+    console.log("今日はもう投稿済みです。");
+    return;
+  }
   const post = pickNext(queue, posted, today, folderPosts(), regularDay);
   if (!post) {
     if (regularDay) console.log("::warning::投稿できる写真がありません。instagram/images/ に写真を追加してください。");

@@ -3,7 +3,10 @@ name: Instagram 投稿予定の確認
 on:
   schedule:
     # 毎朝 8:00（日本時間）= 前日 23:00 UTC。その日の19時に投稿する予定の写真と文章を Issue でお知らせ
+    # GitHub が飛ばすことがあるので 8:30・9:00 にも予備で起動（同じ日のお知らせは1回だけ）
     - cron: "0 23 * * *"
+    - cron: "30 23 * * *"
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 permissions:
@@ -50,4 +53,7 @@ jobs:
           gh label create instagram-preview --color E4405F --description "Instagram 投稿予定" --force
           title="$(node -e 'const p=require(process.argv[1]);const [y,m,d]=p.date.split("-");console.log(`Instagram 投稿予定 ${+m}/${+d} 19時`)' "$f")"
           node instagram/preview-issue.mjs "$f" "${{ github.repository }}" > "${{ runner.temp }}/body.md"
+          if gh issue list --label instagram-preview --state open --search "\"$title\" in:title" --json title --jq '.[].title' | grep -qxF "$title"; then
+            echo "今日のお知らせは送信済みです"; exit 0
+          fi
           gh issue create --title "$title" --label instagram-preview --body-file "${{ runner.temp }}/body.md"
