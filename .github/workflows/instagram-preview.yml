@@ -2,8 +2,8 @@ name: Instagram 投稿予定の確認
 
 on:
   schedule:
-    # 毎朝 9:00（日本時間）= 0:00 UTC。その日の19時に投稿する予定の写真と文章を Issue でお知らせ
-    - cron: "0 0 * * *"
+    # 毎朝 8:00（日本時間）= 前日 23:00 UTC。その日の19時に投稿する予定の写真と文章を Issue でお知らせ
+    - cron: "0 23 * * *"
   workflow_dispatch:
 
 permissions:
