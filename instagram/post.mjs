@@ -61,6 +61,17 @@ function todayJst() {
   return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+// 日本時間の「時」
+export function jstHour(now = Date.now()) {
+  return new Date(now + 9 * 3600 * 1000).getUTCHours();
+}
+
+// 自動実行してよい時間帯か（お知らせ 8〜18時 / 投稿 19〜24時、日本時間）
+export function inWindow(kind, now = Date.now()) {
+  const h = jstHour(now);
+  return kind === "preview" ? h >= 8 && h < 18 : h >= 19;
+}
+
 // 日本時間でその日に投稿した記録があるか
 export function postedOn(posted, day) {
   return posted.some(
@@ -340,6 +351,12 @@ async function main() {
   const manual = process.env.MANUAL_RUN === "1";
   const regularDay = manual || isRegularDay(today);
   // 自動実行は予備の時刻にも起動するので、今日すでに投稿していたら何もしない
+  // GitHub の自動実行は何時間も遅れることがあるので、決まった時間帯の外なら何もしない
+  // （お知らせは 8〜18時、投稿は 19〜24時。手動実行はいつでも動く）
+  if (!manual && !inWindow(PREVIEW ? "preview" : "post")) {
+    console.log(`::warning::自動実行が予定の時間帯の外（日本時間 ${jstHour()}時）に起動したので何もしません。`);
+    return;
+  }
   if (!manual && postedOn(posted, today)) {
     console.log("今日はもう投稿済みです。");
     return;
