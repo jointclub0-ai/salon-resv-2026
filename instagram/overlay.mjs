@@ -36,7 +36,7 @@ export const STYLES = {
     shadow: true,
   },
 };
-export const DEFAULT_STYLE = "band";
+export const DEFAULT_STYLE = "white";
 const SIGNATURE = "JOINT CLUB  KOBE";
 
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

@@ -14,7 +14,7 @@
 //   SITE_BASE_URL    既定 https://jointclub-kobe.com （画像の公開URLの元）
 //   ANTHROPIC_API_KEY  本文(caption)がない投稿を AI に書いてもらうときに必要
 //   FB_PAGE_ID / FB_PAGE_ACCESS_TOKEN  Facebook ページにも同じ内容を投稿する（facebook.mjs を参照）
-//   CATCH_STYLE      1枚目の写真に重ねるキャッチコピーの見た目（band / white / mincho、off で文字を入れない）
+//   CATCH_STYLE      1枚目の写真に重ねるキャッチコピーの見た目（white / band / mincho、off で文字を入れない）
 
 import { readFile, writeFile, appendFile } from "node:fs/promises";
 import { existsSync, readdirSync, readFileSync, statSync, openSync, readSync, closeSync } from "node:fs";

@@ -34,8 +34,8 @@ joint club の Instagram（@jointclub_kobe）と Facebook ページに、**月�
 - 直したいときは、Issue のリンクから `キャッチコピー.txt` を編集（改行すると2行。1行12文字くらいまでがきれい）
 - 文字を入れたくない日は、`キャッチコピー.txt` の中身を全部消して保存
 - 自分で決めたいときは、写真と一緒に `キャッチコピー.txt` を入れておけば、AIはそれを使います（日付なしの1枚写真なら `写真の名前.キャッチコピー.txt`）
-- 文字の見た目は3種類：`band`（下を暗くして白文字・いつもの設定）、`white`（白い帯にこげ茶の文字）、`mincho`（明朝体の白文字）。
-  変えるときは Settings → Secrets and variables → Actions → **Variables** タブで `IG_CATCH_STYLE` に `white` などを登録します。`off` にすると文字を入れません
+- 文字の見た目は3種類：`white`（白い帯にこげ茶の文字・いつもの設定）、`band`（下を暗くして白文字）、`mincho`（明朝体の白文字）。
+  変えるときは Settings → Secrets and variables → Actions → **Variables** タブで `IG_CATCH_STYLE` に `band` などを登録します。`off` にすると文字を入れません
 
 ※ GitHub の自動実行は混雑で遅れることがあるため、お知らせは 8〜12時ごろ、投稿は 19〜24時ごろに届きます。日付が変わってからの投稿や、夜中のお知らせはしません。
 
