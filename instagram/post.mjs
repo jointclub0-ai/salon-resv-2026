@@ -14,6 +14,7 @@
 //   SITE_BASE_URL    既定 https://jointclub-kobe.com （画像の公開URLの元）
 //   ANTHROPIC_API_KEY  本文(caption)がない投稿を AI に書いてもらうときに必要
 //   FB_PAGE_ID / FB_PAGE_ACCESS_TOKEN  Facebook ページにも同じ内容を投稿する（facebook.mjs を参照）
+//   CATCH_STYLE      1枚目の写真に重ねるキャッチコピーの見た目（white / band / mincho、off で文字を入れない）
 
 import { readFile, writeFile, appendFile } from "node:fs/promises";
 import { existsSync, readdirSync, readFileSync, statSync, openSync, readSync, closeSync } from "node:fs";
@@ -22,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { validateQueue } from "./validate.mjs";
 import { generateCaption, loadProfile } from "./caption.mjs";
 import { prepareImage } from "./prepare.mjs";
+import { overlayCatchCopy, STYLES, DEFAULT_STYLE } from "./overlay.mjs";
 import { connectPage, facebookPageId, publishToFacebook } from "./facebook.mjs";
 import { execFileSync } from "node:child_process";
 
@@ -33,6 +35,9 @@ const IMAGES_DIR = path.join(here, "images");
 const PROCESSED_DIR = path.join(here, "processed");
 // 朝のプレビューで作った投稿文。この名前のファイルがあれば、AIは使わずこの文章をそのまま投稿する。
 export const CAPTION_FILE = "投稿文.txt";
+// 1枚目の写真に重ねるキャッチコピー。空にすると文字なし。
+export const CATCH_FILE = "キャッチコピー.txt";
+const CATCH_STYLE = (process.env.CATCH_STYLE || DEFAULT_STYLE).trim();
 const PREVIEW = ["1", "true", "yes"].includes(String(process.env.PREVIEW || "").toLowerCase());
 
 const DRY_RUN = ["1", "true", "yes"].includes(String(process.env.DRY_RUN || "").toLowerCase());
@@ -112,7 +117,7 @@ export function folderPosts(dir = IMAGES_DIR) {
         .slice(0, 10);
       if (photos.length === 0) continue;
       const memo = files
-        .filter((f) => /\.txt$/i.test(f) && f !== CAPTION_FILE)
+        .filter((f) => /\.txt$/i.test(f) && f !== CAPTION_FILE && f !== CATCH_FILE)
         .sort(byName)
         .map((f) => readFileSync(path.join(full, f), "utf8").trim())
         .filter(Boolean)
@@ -121,6 +126,7 @@ export function folderPosts(dir = IMAGES_DIR) {
         id: `images/${n}/`,
         notBefore: dateFromName(n),
         captionFile: toRel(path.join(full, CAPTION_FILE)),
+        catchFile: toRel(path.join(full, CATCH_FILE)),
         image: photos.length === 1 ? toRel(photos[0]) : photos.map(toRel),
         memo: memo || undefined,
       });
@@ -130,6 +136,7 @@ export function folderPosts(dir = IMAGES_DIR) {
         id: `images/${n}`,
         notBefore: dateFromName(n),
         captionFile: toRel(path.join(dir, n.replace(/\.jpe?g$/i, "") + "." + CAPTION_FILE)),
+        catchFile: toRel(path.join(dir, n.replace(/\.jpe?g$/i, "") + "." + CATCH_FILE)),
         image: toRel(full),
         memo: existsSync(memoFile) ? readFileSync(memoFile, "utf8").trim() : undefined,
       });
@@ -385,6 +392,10 @@ async function main() {
   console.log(`画像: ${prepared.map((p) => p.rel || p.url).join(", ")}`);
 
   let full = { ...post };
+  // キャッチコピー：ファイルがあればそれ（空なら文字なし）、なければAIが作ったもの・queue.json の catchCopy
+  const catchPath = post.catchFile && path.join(repoRoot, post.catchFile);
+  const savedCatch = catchPath && existsSync(catchPath) ? readFileSync(catchPath, "utf8").trim() : null;
+  let catchCopy = savedCatch ?? (post.catchCopy || "");
   const captionPath = post.captionFile && path.join(repoRoot, post.captionFile);
   const savedCaption = captionPath && existsSync(captionPath) ? readFileSync(captionPath, "utf8").trim() : "";
   if (savedCaption) {
@@ -406,22 +417,36 @@ async function main() {
     const ai = await generateCaption({ images, memo: post.memo, profile, recent });
     // 手で指定したハッシュタグがあれば、それを先に並べる
     full = { ...post, caption: ai.caption, hashtags: [...new Set([...(post.hashtags || []), ...ai.hashtags])].slice(0, 30) };
+    if (savedCatch === null && !post.catchCopy) catchCopy = ai.catchCopy;
     console.log("（本文はAIが作りました）");
   }
 
   const caption = buildCaption(full);
   console.log("本文:\n" + caption);
 
+  // 1枚目の写真にキャッチコピーを重ねる
+  const useCatch = CATCH_STYLE !== "off" && catchCopy && prepared[0]?.file;
+  if (useCatch) {
+    if (!STYLES[CATCH_STYLE]) console.log(`::warning::CATCH_STYLE「${CATCH_STYLE}」はないので、${DEFAULT_STYLE} にします。`);
+    await overlayCatchCopy(prepared[0].file, catchCopy, CATCH_STYLE);
+    console.log(`キャッチコピー（1枚目の写真に入れました）:\n${catchCopy}`);
+  } else {
+    console.log("キャッチコピー: なし");
+  }
+
   if (PREVIEW) {
     // 朝のプレビュー：投稿文をファイルに保存して、確認・修正できるようにする（投稿はしない）
     if (captionPath && !savedCaption) await writeFile(captionPath, caption + "\n");
+    if (catchPath && savedCatch === null) await writeFile(catchPath, catchCopy + "\n");
     if (process.env.PREVIEW_OUT) {
       await writeFile(process.env.PREVIEW_OUT, JSON.stringify({
         date: today,
         id: post.id,
-        images: [].concat(post.image),
+        images: [].concat(post.image).map((img, i) => (i === 0 && useCatch ? prepared[0].rel : img)),
         caption,
         captionFile: post.captionFile || null,
+        catchCopy: CATCH_STYLE === "off" ? null : catchCopy,
+        catchFile: post.catchFile || null,
       }, null, 2));
     }
     console.log("\n[プレビュー] 投稿はしていません。");

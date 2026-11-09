@@ -14,6 +14,9 @@ const MAX_INLINE_BYTES = 3.5 * 1024 * 1024;
 const CaptionSchema = z.object({
   caption: z.string().describe("ハッシュタグを含まない本文"),
   hashtags: z.array(z.string()).describe("# を付けたハッシュタグ。10〜20個"),
+  catchCopy: z
+    .string()
+    .describe("写真の上に大きく載せる短いキャッチコピー。1〜2行（改行は \\n）、1行12文字以内。ハッシュタグ・絵文字・店名は入れない"),
 });
 
 function imageBlock(file, publicUrl) {
@@ -48,7 +51,15 @@ export async function generateCaption({ images, memo, profile, recent = [] }) {
   if (recent.length) {
     lines.push("最近の投稿です。書き出しや言い回しが同じにならないようにしてください:\n" + recent.map((r) => `- ${r.slice(0, 80)}`).join("\n"));
   }
-  lines.push("この写真の投稿文とハッシュタグを作ってください。");
+  lines.push(
+    [
+      "この写真の投稿文とハッシュタグ、写真に重ねるキャッチコピーを作ってください。",
+      "キャッチコピーは、スクロール中の人が思わず手を止めるような、短くて印象に残る言葉にします。",
+      "髪の悩み（うねり・広がり・パサつき など）や仕上がりの気持ちよさが伝わる言葉がおすすめです。",
+      "例:「うねりとサヨナラ。\n指どおり、つるん。」「髪に、ツヤのごほうびを。」（例をそのまま使わず、写真に合わせて考えてください）",
+      "1行12文字以内・2行まで。誇大な表現（「絶対」「100%」など）や、写真・メモにない効果は書かないでください。",
+    ].join("\n"),
+  );
 
   const response = await client.beta.messages.parse({
     model: MODEL,
@@ -73,7 +84,8 @@ export async function generateCaption({ images, memo, profile, recent = [] }) {
     throw new Error(`AIの返事を読み取れませんでした（stop_reason: ${response.stop_reason}）。`);
   }
   const hashtags = [...new Set(out.hashtags.map((t) => t.trim()).filter(Boolean))].slice(0, 30);
-  return { caption: out.caption.trim(), hashtags };
+  const catchCopy = (out.catchCopy || "").replace(/\\n/g, "\n").split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 2).join("\n");
+  return { caption: out.caption.trim(), hashtags, catchCopy };
 }
 
 export function loadProfile(dir) {

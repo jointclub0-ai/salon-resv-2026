@@ -48,6 +48,7 @@ jobs:
           IG_GRAPH_HOST: ${{ vars.IG_GRAPH_HOST }}
           FB_PAGE_ID: ${{ vars.FB_PAGE_ID }}
           FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+          CATCH_STYLE: ${{ vars.IG_CATCH_STYLE }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
           MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: node instagram/post.mjs
