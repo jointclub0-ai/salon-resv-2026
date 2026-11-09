@@ -46,6 +46,8 @@ jobs:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           IG_GRAPH_HOST: ${{ vars.IG_GRAPH_HOST }}
+          FB_PAGE_ID: ${{ vars.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
           MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: node instagram/post.mjs

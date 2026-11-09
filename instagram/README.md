@@ -1,6 +1,6 @@
 # Instagram 自動投稿
 
-joint club の Instagram（@jointclub_kobe）に、**月・水・金・日の19時**に自動で投稿します（日付つきの写真はその日に投稿）。
+joint club の Instagram（@jointclub_kobe）と Facebook ページに、**月・水・金・日の19時**に自動で投稿します（日付つきの写真はその日に投稿）。
 **写真を `instagram/images/` に入れておくだけ**で、AI（Claude）が写真を見て投稿文とハッシュタグを考え、1回1枚ずつ投稿します。
 
 ## ふだんの使い方：写真を入れるだけ
@@ -89,6 +89,18 @@ Meta 側の準備（2026年11月時点の画面）：
 
 この方式のトークン（EAA で始まる）は期限切れになりません。もし投稿が失敗してトークンを作り直したときは、`IG_ACCESS_TOKEN` を上書きしてください。
 （古い「Instagramでログイン」方式の IGAA で始まるトークンを使う場合だけ、**Variables** タブで `IG_GRAPH_HOST` = `graph.instagram.com` を登録します）
+
+## Facebook ページにも投稿する
+
+Instagram に投稿したあと、**同じ写真・同じ文章**を Facebook ページ「Joint Club」にも投稿します（2枚以上なら複数写真の投稿）。
+Facebook への投稿に失敗しても、Instagram の投稿はそのまま行われます（Actions の画面に黄色い注意が出ます）。
+
+- つながっているかの確認：下の「試しに動かす」でドライランを実行し、`Facebook 接続OK: Joint Club` と出ればOK
+- つながらないとき：トークンに Facebook ページへの投稿の権限がありません。ビジネス設定 → システムユーザー → `instagram-bot` →「トークンを生成」で、
+  これまでの権限に加えて `pages_show_list`・`pages_read_engagement`・`pages_manage_posts` にチェックを入れて作り直し、`IG_ACCESS_TOKEN` を上書きします
+  （一覧にない場合は、アプリのユースケースに「ページのすべてを管理」を追加します）
+- Facebook 用に別のトークンを使いたいときは、Secret `FB_PAGE_ACCESS_TOKEN` に登録します
+- Facebook への投稿をやめたいときは、**Variables** タブで `FB_PAGE_ID` = `off` を登録します（別のページにしたいときはそのページのIDを登録）
 
 ## 試しに動かす
 
