@@ -9,7 +9,7 @@ const [y, m, d] = p.date.split("-").map(Number);
 const wd = "日月火水木金土"[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 
 const lines = [];
-lines.push(`今日 **${m}月${d}日（${wd}）19時** に、次の内容で Instagram に投稿する予定です。`);
+lines.push(`今日 **${m}月${d}日（${wd}）19時** に、次の内容で Instagram（と Facebook ページ）に投稿する予定です。`);
 lines.push("");
 for (const img of p.images) {
   const src = /^https?:\/\//.test(img) ? img : `https://raw.githubusercontent.com/${repo}/main/${enc(img)}`;

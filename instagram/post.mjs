@@ -13,6 +13,7 @@
 //   IG_API_VERSION   既定 v23.0
 //   SITE_BASE_URL    既定 https://jointclub-kobe.com （画像の公開URLの元）
 //   ANTHROPIC_API_KEY  本文(caption)がない投稿を AI に書いてもらうときに必要
+//   FB_PAGE_ID / FB_PAGE_ACCESS_TOKEN  Facebook ページにも同じ内容を投稿する（facebook.mjs を参照）
 
 import { readFile, writeFile, appendFile } from "node:fs/promises";
 import { existsSync, readdirSync, readFileSync, statSync, openSync, readSync, closeSync } from "node:fs";
@@ -21,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { validateQueue } from "./validate.mjs";
 import { generateCaption, loadProfile } from "./caption.mjs";
 import { prepareImage } from "./prepare.mjs";
+import { connectPage, facebookPageId, publishToFacebook } from "./facebook.mjs";
 import { execFileSync } from "node:child_process";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -443,6 +445,18 @@ async function main() {
     console.log("::notice::IG_USER_ID とは別のIDで接続しました。Secrets の IG_USER_ID を直すとこの表示は消えます。");
   }
 
+  // Facebook ページにもつながるか確認（つながらなくても Instagram の投稿は続ける）
+  const fbPageId = facebookPageId();
+  let fbPage = null;
+  if (fbPageId) {
+    try {
+      fbPage = await connectPage(fbPageId);
+      console.log(`Facebook 接続OK: ${fbPage.name || fbPageId}`);
+    } catch (e) {
+      console.log(`::warning::Facebook ページにつながらないので、Facebook への投稿はしません。${e.message.replace(/\n/g, " ")}`);
+    }
+  }
+
   if (DRY_RUN) {
     console.log("\n[ドライラン] 実際の投稿はしていません。");
     return;
@@ -452,10 +466,23 @@ async function main() {
   const hosted = local.length ? await hostImages(local) : [];
   const imageUrls = prepared.map((p) => (p.url ? p.url : hosted[local.indexOf(p.rel)]));
   const { mediaId, permalink } = await publish(imageUrls, caption);
-  posted.push({ id: post.id, mediaId, permalink: permalink || null, postedAt: new Date().toISOString(), caption });
+  const record = { id: post.id, mediaId, permalink: permalink || null, postedAt: new Date().toISOString(), caption };
+  posted.push(record);
   await writeFile(POSTED, JSON.stringify(posted, null, 2) + "\n");
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, "posted=1\n");
   console.log(`投稿しました: ${permalink || mediaId}`);
+
+  if (fbPage) {
+    try {
+      const fbr = await publishToFacebook(fbPage, imageUrls, caption);
+      record.facebookPostId = fbr.postId;
+      record.facebookPermalink = fbr.permalink;
+      await writeFile(POSTED, JSON.stringify(posted, null, 2) + "\n");
+      console.log(`Facebook にも投稿しました: ${fbr.permalink || fbr.postId}`);
+    } catch (e) {
+      console.log(`::warning::Instagram には投稿しましたが、Facebook への投稿に失敗しました。${e.message}`);
+    }
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
