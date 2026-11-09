@@ -16,6 +16,16 @@ for (const img of p.images) {
   lines.push(`<img src="${src}" width="320">`);
 }
 lines.push("");
+if (p.catchCopy != null) {
+  lines.push("### 写真に入れるキャッチコピー（1枚目）");
+  lines.push("");
+  lines.push(p.catchCopy ? "```\n" + p.catchCopy + "\n```" : "（文字なし）");
+  lines.push("");
+  if (p.catchFile) {
+    lines.push(`✏️ **キャッチコピーを直したいとき**：[ここを開いて編集](https://github.com/${repo}/edit/main/${enc(p.catchFile)}) → 緑の「Commit changes」。改行すると2行になります。中身を全部消すと文字なしで投稿します。`);
+    lines.push("");
+  }
+}
 lines.push("### 投稿文");
 lines.push("");
 lines.push("```");
