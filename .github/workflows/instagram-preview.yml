@@ -7,6 +7,11 @@ on:
     - cron: "7,22,37,52 23 * * *"
     - cron: "7,22,37,52 0-2 * * *"
   workflow_dispatch:
+    inputs:
+      timer:
+        description: "外部タイマーからの起動（自動実行と同じ扱い）"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -34,7 +39,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PREVIEW: "1"
-          MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && !inputs.timer && '1' || '' }}
           PREVIEW_OUT: ${{ runner.temp }}/preview.json
           CATCH_STYLE: ${{ vars.IG_CATCH_STYLE }}
         run: node instagram/post.mjs
