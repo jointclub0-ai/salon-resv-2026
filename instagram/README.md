@@ -120,3 +120,16 @@ GitHub の **Actions → Instagram 自動投稿 → Run workflow** を押しま�
 
 `.github/workflows/instagram-post.yml` の `cron` の行を変えます（時刻は日本時間−9時間）。
 例：火・木・土・日の12時 → `0 3 * * 0,2,4,6`
+
+## 外部タイマー（cron-job.org）
+
+GitHub の自動実行（schedule）は何時間も遅れたり飛ばされたりするため、無料の cron-job.org から毎日決まった時刻に起動しています。
+
+- 鍵：GitHub の Fine-grained token（このリポジトリだけ、権限は Actions の Read and write のみ）
+- 朝8時：`POST https://api.github.com/repos/jointclub0-ai/salon-resv-2026/actions/workflows/instagram-preview.yml/dispatches`
+  本文 `{"ref":"main","inputs":{"timer":true}}`
+- 夜19時：`POST https://api.github.com/repos/jointclub0-ai/salon-resv-2026/actions/workflows/instagram-post.yml/dispatches`
+  本文 `{"ref":"main","inputs":{"timer":true,"dry_run":false}}`
+- ヘッダー：`Authorization: Bearer <token>`、`Accept: application/vnd.github+json`
+
+`timer: true` の起動は自動実行と同じ扱いで、時間帯・曜日・その日の投稿済みを確認するので、GitHub の schedule と重なっても二重投稿はしません。鍵は期限が来たら作り直して cron-job.org の2つのジョブに貼り直してください。

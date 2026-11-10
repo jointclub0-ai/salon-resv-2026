@@ -14,6 +14,10 @@ on:
         description: "ドライラン（チェックだけで実際には投稿しない）"
         type: boolean
         default: true
+      timer:
+        description: "外部タイマーからの起動（自動実行と同じ扱い：時間帯・曜日・投稿済みを確認）"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -50,7 +54,7 @@ jobs:
           FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
           CATCH_STYLE: ${{ vars.IG_CATCH_STYLE }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '' }}
-          MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          MANUAL_RUN: ${{ github.event_name == 'workflow_dispatch' && !inputs.timer && '1' || '' }}
         run: node instagram/post.mjs
       - name: 投稿の記録とカレンダーを保存
         if: always()
