@@ -50,7 +50,7 @@ export function validateQueue(queue, repoRoot) {
   return problems;
 }
 
-// instagram/images/ に置いた写真のチェック（JPEG以外は投稿できない）
+// instagram/images/ に置いた写真・動画のチェック（写真は JPEG、動画は .mp4 / .mov）
 export function validateImageFolder(dir, label = "images") {
   const problems = [];
   if (!existsSync(dir)) return problems;
@@ -62,11 +62,13 @@ export function validateImageFolder(dir, label = "images") {
         problems.push(`${label}/${name}: フォルダの中にさらにフォルダは入れられません`);
         continue;
       }
-      const photos = readdirSync(file).filter((n) => /\.jpe?g$/i.test(n));
-      if (photos.length > 10) problems.push(`${label}/${name}: 1回の投稿は10枚までです（今は${photos.length}枚）`);
+      const photos = readdirSync(file).filter((n) => /\.(jpe?g|mp4|mov|m4v)$/i.test(n));
+      if (photos.length > 10) problems.push(`${label}/${name}: 1回の投稿は写真・動画あわせて10個までです（今は${photos.length}個）`);
       problems.push(...validateImageFolder(file, `${label}/${name}`));
+    } else if (/\.(mp4|mov|m4v)$/i.test(name)) {
+      if (statSync(file).size > 100 * 1024 * 1024) problems.push(`${label}/${name}: 動画は100MBまでにしてください`);
     } else if (!/\.jpe?g$/i.test(name) || !isJpeg(file)) {
-      problems.push(`${label}/${name}: JPEG（.jpg）にしてください。iPhoneの写真は「互換性優先」で書き出すとJPEGになります`);
+      problems.push(`${label}/${name}: 写真は JPEG（.jpg）、動画は .mp4 か .mov にしてください。iPhoneの写真は「互換性優先」で書き出すとJPEGになります`);
     } else if (statSync(file).size > 8 * 1024 * 1024) {
       problems.push(`${label}/${name}: 8MBを超えているので小さくしてください`);
     }
