@@ -31,6 +31,8 @@ jobs:
           node-version: 22
       - run: npm ci
         working-directory: instagram
+      - name: 動画を変換する道具（ffmpeg）を用意
+        run: command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
       - name: git の準備
         run: |
           git config user.name "instagram-bot"

@@ -11,13 +11,21 @@ const wd = "日月火水木金土"[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 const lines = [];
 lines.push(`今日 **${m}月${d}日（${wd}）19時** に、次の内容で Instagram（と Facebook ページ）に投稿する予定です。`);
 lines.push("");
-for (const img of p.images) {
+const videos = p.videos || [];
+if (p.reel) {
+  lines.push("🎬 **動画（リール）で投稿します。** 下の画像は動画の表紙（1場面）です。");
+  lines.push("");
+} else if (videos.some(Boolean)) {
+  lines.push(`🎬 写真と動画をまとめて投稿します（🎬 の付いたものは動画の1場面です）。`);
+  lines.push("");
+}
+for (const [i, img] of p.images.entries()) {
   const src = /^https?:\/\//.test(img) ? img : `https://raw.githubusercontent.com/${repo}/main/${enc(img)}`;
-  lines.push(`<img src="${src}" width="320">`);
+  lines.push(`${videos[i] && !p.reel ? "🎬 " : ""}<img src="${src}" width="320">`);
 }
 lines.push("");
 if (p.catchCopy != null) {
-  lines.push("### 写真に入れるキャッチコピー（1枚目）");
+  lines.push(p.reel ? "### 表紙に入れるキャッチコピー" : "### 写真に入れるキャッチコピー（1枚目）");
   lines.push("");
   lines.push(p.catchCopy ? "```\n" + p.catchCopy + "\n```" : "（文字なし）");
   lines.push("");
@@ -36,7 +44,7 @@ if (p.captionFile) {
   lines.push(`✏️ **文章を直したいとき**：[ここを開いて編集](https://github.com/${repo}/edit/main/${enc(p.captionFile)}) → 緑の「Commit changes」。19時にその文章で投稿されます。`);
 }
 lines.push("");
-lines.push("🛑 **今日の投稿をやめたいとき**：その日のフォルダの写真を削除してください。");
+lines.push("🛑 **今日の投稿をやめたいとき**：その日のフォルダの写真・動画を削除してください。");
 lines.push("");
 lines.push("このままでよければ、何もしなくて大丈夫です。投稿が終わるとこの Issue は自動で閉じます。");
 console.log(lines.join("\n"));

@@ -22,7 +22,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateQueue } from "./validate.mjs";
 import { generateCaption, loadProfile } from "./caption.mjs";
-import { prepareImage } from "./prepare.mjs";
+import { prepareImage, prepareVideo, isVideoName } from "./prepare.mjs";
 import { overlayCatchCopy, STYLES, DEFAULT_STYLE } from "./overlay.mjs";
 import { connectPage, facebookPageId, publishToFacebook } from "./facebook.mjs";
 import { execFileSync } from "node:child_process";
@@ -99,6 +99,11 @@ function isJpegFile(file) {
 // フォルダごと入れると、その中の写真（2〜10枚）をまとめて1回のスワイプ投稿にする。
 // フォルダの中の .txt は、その投稿の AI へのメモになる。
 const isPostableJpeg = (file) => isJpegFile(file) && statSync(file).size <= 8 * 1024 * 1024;
+// 動画（.mp4 / .mov）は1本で「リール」、写真と混ぜるとスワイプ投稿の1枚になる
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+const isPostableMedia = (file) =>
+  isVideoName(file) ? statSync(file).size <= MAX_VIDEO_BYTES : /\.jpe?g$/i.test(file) && isPostableJpeg(file);
+const isMediaName = (n) => /\.jpe?g$/i.test(n) || isVideoName(n);
 const byName = (a, b) => a.localeCompare(b, "ja", { numeric: true });
 const toRel = (file) => path.relative(repoRoot, file).split(path.sep).join("/");
 
@@ -110,10 +115,10 @@ export function folderPosts(dir = IMAGES_DIR) {
     if (statSync(full).isDirectory()) {
       const files = readdirSync(full).filter((f) => !f.startsWith("."));
       const photos = files
-        .filter((f) => /\.jpe?g$/i.test(f))
+        .filter(isMediaName)
         .sort(byName)
         .map((f) => path.join(full, f))
-        .filter(isPostableJpeg)
+        .filter(isPostableMedia)
         .slice(0, 10);
       if (photos.length === 0) continue;
       const memo = files
@@ -130,13 +135,14 @@ export function folderPosts(dir = IMAGES_DIR) {
         image: photos.length === 1 ? toRel(photos[0]) : photos.map(toRel),
         memo: memo || undefined,
       });
-    } else if (/\.jpe?g$/i.test(n) && isPostableJpeg(full)) {
-      const memoFile = path.join(dir, n.replace(/\.jpe?g$/i, ".txt"));
+    } else if (isMediaName(n) && isPostableMedia(full)) {
+      const stem = n.replace(/\.[^.]+$/, "");
+      const memoFile = path.join(dir, stem + ".txt");
       posts.push({
         id: `images/${n}`,
         notBefore: dateFromName(n),
-        captionFile: toRel(path.join(dir, n.replace(/\.jpe?g$/i, "") + "." + CAPTION_FILE)),
-        catchFile: toRel(path.join(dir, n.replace(/\.jpe?g$/i, "") + "." + CATCH_FILE)),
+        captionFile: toRel(path.join(dir, stem + "." + CAPTION_FILE)),
+        catchFile: toRel(path.join(dir, stem + "." + CATCH_FILE)),
         image: toRel(full),
         memo: existsSync(memoFile) ? readFileSync(memoFile, "utf8").trim() : undefined,
       });
@@ -197,14 +203,14 @@ async function api(method, endpoint, params, host = HOST) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // コンテナの処理完了を待つ（画像の取り込みに数秒かかることがある）
-async function waitReady(containerId) {
-  for (let i = 0; i < 20; i++) {
+async function waitReady(containerId, tries = 20) {
+  for (let i = 0; i < tries; i++) {
     const { status_code } = await api("GET", containerId, { fields: "status_code" });
     if (status_code === "FINISHED") return;
     if (status_code === "ERROR" || status_code === "EXPIRED") {
-      throw new Error(`メディアの準備に失敗しました（${status_code}）。画像URLが公開されているか、JPEGか確認してください。`);
+      throw new Error(`メディアの準備に失敗しました（${status_code}）。画像・動画のURLが公開されているか、形式が正しいか確認してください。`);
     }
-    await sleep(3000);
+    await sleep(tries > 20 ? 5000 : 3000);
   }
   throw new Error("メディアの準備がタイムアウトしました。");
 }
@@ -317,19 +323,29 @@ export async function resolveAccount() {
   throw new Error("Instagram アカウントに接続できませんでした。\n- " + notes.join("\n- "));
 }
 
-async function publish(imageUrls, caption) {
+// media: [{ type: "photo" | "video", url, coverUrl? }]
+async function publish(media, caption) {
   const user = USER_ID;
-  const images = imageUrls;
+  const VIDEO_TRIES = 120; // 動画は Instagram 側の処理に数分かかる（5秒おきに最大10分）
   let creationId;
 
-  if (images.length === 1) {
-    const { id } = await api("POST", `${user}/media`, { image_url: images[0], caption });
+  if (media.length === 1 && media[0].type === "video") {
+    const params = { media_type: "REELS", video_url: media[0].url, caption, share_to_feed: "true" };
+    if (media[0].coverUrl) params.cover_url = media[0].coverUrl;
+    const { id } = await api("POST", `${user}/media`, params);
+    await waitReady(id, VIDEO_TRIES);
+    creationId = id;
+  } else if (media.length === 1) {
+    const { id } = await api("POST", `${user}/media`, { image_url: media[0].url, caption });
     creationId = id;
   } else {
     const children = [];
-    for (const img of images) {
-      const { id } = await api("POST", `${user}/media`, { image_url: img, is_carousel_item: "true" });
-      await waitReady(id);
+    for (const m of media) {
+      const params = m.type === "video"
+        ? { media_type: "VIDEO", video_url: m.url, is_carousel_item: "true" }
+        : { image_url: m.url, is_carousel_item: "true" };
+      const { id } = await api("POST", `${user}/media`, params);
+      await waitReady(id, m.type === "video" ? VIDEO_TRIES : 20);
       children.push(id);
     }
     const { id } = await api("POST", `${user}/media`, {
@@ -380,16 +396,25 @@ async function main() {
   console.log(`次の投稿: ${post.id}`);
 
   // 写真を Instagram の縦横比などに合わせて整える（URL で指定した画像はそのまま）
+  const relOf = (f) => path.relative(repoRoot, f).split(path.sep).join("/");
   const prepared = [];
   for (const img of [].concat(post.image)) {
     if (/^https?:\/\//.test(img)) {
-      prepared.push({ url: img });
+      prepared.push({ type: isVideoName(img) ? "video" : "photo", url: img });
       continue;
     }
-    const out = await prepareImage(path.join(repoRoot, img.replace(/^\/+/, "")), PROCESSED_DIR);
-    prepared.push({ file: out, rel: path.relative(repoRoot, out).split(path.sep).join("/") });
+    const src = path.join(repoRoot, img.replace(/^\/+/, ""));
+    if (isVideoName(img)) {
+      const v = await prepareVideo(src, PROCESSED_DIR);
+      prepared.push({ type: "video", file: v.video, rel: relOf(v.video), cover: v.cover, coverRel: relOf(v.cover) });
+    } else {
+      const out = await prepareImage(src, PROCESSED_DIR);
+      prepared.push({ type: "photo", file: out, rel: relOf(out) });
+    }
   }
-  console.log(`画像: ${prepared.map((p) => p.rel || p.url).join(", ")}`);
+  const hasVideo = prepared.some((p) => p.type === "video");
+  const isReel = prepared.length === 1 && hasVideo;
+  console.log(`${hasVideo ? "画像・動画" : "画像"}: ${prepared.map((p) => p.rel || p.url).join(", ")}${isReel ? "（リール）" : ""}`);
 
   let full = { ...post };
   // キャッチコピー：ファイルがあればそれ（空なら文字なし）、なければAIが作ったもの・queue.json の catchCopy
@@ -413,8 +438,17 @@ async function main() {
     }
     const profile = loadProfile(here);
     const recent = posted.slice(-5).map((p) => p.caption).filter(Boolean);
-    const images = prepared.map((p) => ({ file: p.file || "", url: p.url || toPublicUrl(p.rel) }));
-    const ai = await generateCaption({ images, memo: post.memo, profile, recent });
+    // 動画は表紙の1コマを AI に見せる（URL だけの動画は AI に見せられないので外す）
+    const images = prepared
+      .filter((p) => p.type === "photo" || p.cover)
+      .map((p) => (p.type === "video"
+        ? { file: p.cover, url: toPublicUrl(p.coverRel) }
+        : { file: p.file || "", url: p.url || toPublicUrl(p.rel) }));
+    const videoNote = isReel
+      ? "これはリール動画の1場面です。動画として投稿します。"
+      : hasVideo ? "写真と動画をまとめた投稿です。動画は1場面だけを見せています。" : "";
+    const memo = [videoNote, post.memo].filter(Boolean).join("\n") || undefined;
+    const ai = await generateCaption({ images, memo, profile, recent });
     // 手で指定したハッシュタグがあれば、それを先に並べる
     full = { ...post, caption: ai.caption, hashtags: [...new Set([...(post.hashtags || []), ...ai.hashtags])].slice(0, 30) };
     if (savedCatch === null && !post.catchCopy) catchCopy = ai.catchCopy;
@@ -425,11 +459,13 @@ async function main() {
   console.log("本文:\n" + caption);
 
   // 1枚目の写真にキャッチコピーを重ねる
-  const useCatch = CATCH_STYLE !== "off" && catchCopy && prepared[0]?.file;
+  // 動画（リール）のときは、表紙の画像に入れる（動画そのものには入れない）
+  const catchTarget = prepared[0]?.type === "video" ? (isReel ? prepared[0].cover : null) : prepared[0]?.file;
+  const useCatch = CATCH_STYLE !== "off" && catchCopy && catchTarget;
   if (useCatch) {
     if (!STYLES[CATCH_STYLE]) console.log(`::warning::CATCH_STYLE「${CATCH_STYLE}」はないので、${DEFAULT_STYLE} にします。`);
-    await overlayCatchCopy(prepared[0].file, catchCopy, CATCH_STYLE);
-    console.log(`キャッチコピー（1枚目の写真に入れました）:\n${catchCopy}`);
+    await overlayCatchCopy(catchTarget, catchCopy, CATCH_STYLE);
+    console.log(`キャッチコピー（${isReel ? "リールの表紙" : "1枚目の写真"}に入れました）:\n${catchCopy}`);
   } else {
     console.log("キャッチコピー: なし");
   }
@@ -442,10 +478,13 @@ async function main() {
       await writeFile(process.env.PREVIEW_OUT, JSON.stringify({
         date: today,
         id: post.id,
-        images: [].concat(post.image).map((img, i) => (i === 0 && useCatch ? prepared[0].rel : img)),
+        images: [].concat(post.image).map((img, i) =>
+          prepared[i].type === "video" ? prepared[i].coverRel || img : i === 0 && useCatch ? prepared[0].rel : img),
+        videos: prepared.map((p) => p.type === "video"),
+        reel: isReel,
         caption,
         captionFile: post.captionFile || null,
-        catchCopy: CATCH_STYLE === "off" ? null : catchCopy,
+        catchCopy: CATCH_STYLE === "off" || (hasVideo && !isReel && prepared[0].type === "video") ? null : catchCopy,
         catchFile: post.catchFile || null,
       }, null, 2));
     }
@@ -487,10 +526,16 @@ async function main() {
     return;
   }
 
-  const local = prepared.filter((p) => p.rel).map((p) => p.rel);
+  const local = prepared.flatMap((p) => [p.rel, p.coverRel]).filter(Boolean);
   const hosted = local.length ? await hostImages(local) : [];
-  const imageUrls = prepared.map((p) => (p.url ? p.url : hosted[local.indexOf(p.rel)]));
-  const { mediaId, permalink } = await publish(imageUrls, caption);
+  const urlOf = (rel) => hosted[local.indexOf(rel)];
+  const media = prepared.map((p) => ({
+    type: p.type,
+    url: p.url || urlOf(p.rel),
+    coverUrl: p.coverRel && isReel && useCatch ? urlOf(p.coverRel) : undefined,
+  }));
+  if (hasVideo) console.log("動画を Instagram で処理しています（数分かかることがあります）…");
+  const { mediaId, permalink } = await publish(media, caption);
   const record = { id: post.id, mediaId, permalink: permalink || null, postedAt: new Date().toISOString(), caption };
   posted.push(record);
   await writeFile(POSTED, JSON.stringify(posted, null, 2) + "\n");
@@ -499,7 +544,7 @@ async function main() {
 
   if (fbPage) {
     try {
-      const fbr = await publishToFacebook(fbPage, imageUrls, caption);
+      const fbr = await publishToFacebook(fbPage, media, caption);
       record.facebookPostId = fbr.postId;
       record.facebookPermalink = fbr.permalink;
       await writeFile(POSTED, JSON.stringify(posted, null, 2) + "\n");

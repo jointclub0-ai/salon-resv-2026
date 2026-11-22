@@ -56,15 +56,29 @@ export async function connectPage(pageId = facebookPageId()) {
   throw new Error("Facebook ページに接続できませんでした。\n- " + notes.join("\n- "));
 }
 
-// 写真（公開URL）と文章をページに投稿する。1枚なら写真投稿、2枚以上なら複数写真の投稿。
-export async function publishToFacebook(page, imageUrls, message) {
+// 写真・動画（公開URL）と文章をページに投稿する。
+//   media: [{ type: "photo" | "video", url }]（URL の文字列だけの配列も可。そのときは全部写真）
+// 写真1枚なら写真投稿、2枚以上なら複数写真の投稿。
+// 動画だけなら1本目の動画を投稿。写真と動画が混ざっているときは、写真だけをまとめて投稿する
+// （Facebook ページの投稿には写真と動画を一緒に並べられないため）。
+export async function publishToFacebook(page, media, message) {
+  const items = media.map((m) => (typeof m === "string" ? { type: "photo", url: m } : m));
+  const photos = items.filter((m) => m.type !== "video").map((m) => m.url);
+  const videos = items.filter((m) => m.type === "video").map((m) => m.url);
   let postId;
-  if (imageUrls.length === 1) {
-    const r = await fb("POST", `${page.pageId}/photos`, { url: imageUrls[0], message }, page.token);
+  if (photos.length === 0 && videos.length) {
+    const r = await fb("POST", `${page.pageId}/videos`, { file_url: videos[0], description: message }, page.token);
+    postId = r.id;
+    const { permalink_url } = await fb("GET", postId, { fields: "permalink_url" }, page.token).catch(() => ({}));
+    const link = permalink_url && permalink_url.startsWith("/") ? `https://www.facebook.com${permalink_url}` : permalink_url;
+    return { postId, permalink: link || null };
+  }
+  if (photos.length === 1) {
+    const r = await fb("POST", `${page.pageId}/photos`, { url: photos[0], message }, page.token);
     postId = r.post_id || r.id;
   } else {
     const params = { message };
-    for (const [i, url] of imageUrls.entries()) {
+    for (const [i, url] of photos.entries()) {
       const { id } = await fb("POST", `${page.pageId}/photos`, { url, published: "false" }, page.token);
       params[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id });
     }
