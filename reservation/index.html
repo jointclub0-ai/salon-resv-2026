@@ -152,8 +152,10 @@
 
         showThanks();
       } catch (e) {
-        if (e?.code === "permission-denied") { showClosed(); return; }
-        alert("送信エラーが発生しました。もう一度お試しください。");
+        // 締め切り後の拒否だけ受付終了画面にする。
+        // 締め切り前の permission-denied はルール設定の問題なので、エラーとして扱う。
+        if (e?.code === "permission-denied" && isClosed()) { showClosed(); return; }
+        alert(`送信エラーが発生しました。お手数ですが、お電話またはLINEでご連絡ください。（${e?.code || "unknown"}）`);
         console.error(e);
       } finally {
         document.getElementById("submitBtn").disabled = false;
